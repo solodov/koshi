@@ -142,7 +142,7 @@ This command lets you review or edit your commit description, pushes your commit
 
 ```sh
 # Configure project-specific settings
-cat > ~/.config/koshi/config.json << EOF
+$ cat > ~/.config/koshi/config.json << EOF
 {
   "ai_description_role": "code-author",
   "project_settings": {
@@ -155,12 +155,12 @@ cat > ~/.config/koshi/config.json << EOF
 EOF
 
 # Work on a feature
-cd ~/projects/backend
-jj new
+$ cd ~/projects/backend
+$ jj new
 # ...make code changes...
 
 # Generate AI commit message (uses "backend-engineer" role automatically)
-koshi ai-desc --ticket ABC-123 --commit --pull_request
+$ koshi ai-desc --ticket ABC-123 --commit --pull_request
 ```
 
 Koshi will:
