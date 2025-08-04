@@ -2,6 +2,8 @@
 
 **Koshi** gives your [Jujutsu (jj)](https://github.com/jj-vcs/jj) projects a powerful lift with AI-assisted commit messages, interactive refinement, and a streamlined GitHub Pull Request workflow — all from your terminal.
 
+![AI-assisted Commit Message Example](koshi-ai-desc.png)
+
 ---
 
 ## Features
