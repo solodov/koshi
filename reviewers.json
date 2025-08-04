@@ -1,0 +1,5 @@
+{
+  "$HOME/projects/myproject": ["alice", "bob"],
+  "$HOME/projects/another": ["carol"]
+}
+
