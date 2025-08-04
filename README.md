@@ -19,6 +19,31 @@
 
 ---
 
+## Usage
+
+### Generate/Refine Commit Message with AI
+
+```sh
+koshi ai-desc [--role "<ROLE>"] [--ticket "<TICKET_ID>"] [--commit] [--pull_request]
+```
+
+- `--role <ROLE>`: Override the configured AI assistant's role.
+- `--ticket <TICKET_ID>`: Reference a ticket or issue ID in the commit message.
+- `--commit`: After confirming the description, automatically create a new commit.
+- `--pull_request`: Automatically open or update a GitHub pull request.
+
+If no `--role` is specified, Koshi uses the role from your configuration file (project-specific if available, otherwise the default).
+
+### Create or Update Pull Request
+
+```sh
+koshi pr
+```
+
+This command lets you review or edit your commit description, pushes your commit to GitHub, and creates or updates a pull request. When opening or updating a PR, Koshi will prompt you to select reviewers interactively based on your configuration.
+
+---
+
 ## Requirements
 
 - [jj](https://github.com/jj-vcs/jj) (Jujutsu)
@@ -126,31 +151,6 @@ When creating or updating a pull request, Koshi will:
 1. Look for reviewers configured for the current project in `project_settings`
 2. Merge these with any existing reviewers on the pull request
 3. Present the combined set for interactive selection
-
----
-
-## Usage
-
-### Generate/Refine Commit Message with AI
-
-```sh
-koshi ai-desc [--role "<ROLE>"] [--ticket "<TICKET_ID>"] [--commit] [--pull_request]
-```
-
-- `--role <ROLE>`: Override the configured AI assistant's role.
-- `--ticket <TICKET_ID>`: Reference a ticket or issue ID in the commit message.
-- `--commit`: After confirming the description, automatically create a new commit.
-- `--pull_request`: Automatically open or update a GitHub pull request.
-
-If no `--role` is specified, Koshi uses the role from your configuration file (project-specific if available, otherwise the default).
-
-### Create or Update Pull Request
-
-```sh
-koshi pr
-```
-
-This command lets you review or edit your commit description, pushes your commit to GitHub, and creates or updates a pull request. When opening or updating a PR, Koshi will prompt you to select reviewers interactively based on your configuration.
 
 ---
 
