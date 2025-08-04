@@ -92,6 +92,22 @@ For each project, you can configure:
 - **`ai_description_role`**: Project-specific AI role that overrides the global default
 - **`reviewers`**: Array of GitHub usernames to suggest as default reviewers for pull requests
 
+### What is an AI Role?
+
+An AI role is a configuration for `aichat` that defines the persona and behavior of the AI assistant when generating commit messages. Roles tell the AI:
+- How to format commit messages (e.g., title length, body formatting)
+- What tone and perspective to use (e.g., "engineer sending code for review")
+- What information to include or exclude
+- Special rules or patterns to follow
+
+Roles are defined in your `aichat` configuration. See the [aichat Role Guide](https://github.com/sigoden/aichat/wiki/Role-Guide) for instructions on how to configure roles.
+
+The [`role.md`](role.md) file in this repository shows an example of a well-structured role definition that:
+- Formats commits with a 50-character title line
+- Includes ticket references when provided
+- Marks work-in-progress with "WIP:" prefix
+- Keeps descriptions proportional to code changes
+
 ### AI Role Resolution
 
 When determining which AI role to use, Koshi follows this precedence:
