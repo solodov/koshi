@@ -105,8 +105,10 @@ function ai-desc() {
 }
 
 # @cmd Create and update GitHub pull requests from Jujutsu commits
+# @alias pr
 #
 # @describe
+#
 # Integrates Jujutsu with GitHub pull requests, providing a streamlined workflow
 # for creating and updating PRs from jj-managed repositories.
 #
@@ -121,7 +123,7 @@ function ai-desc() {
 # with a bookmark. The first line of the commit description becomes the PR
 # title.
 #
-function pr() {
+function pull-request() {
   [[ -v argc_debug ]] && set -x
 
   assert_jj_repo
