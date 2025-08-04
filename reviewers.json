@@ -1,5 +1,12 @@
 {
-  "$HOME/projects/myproject": ["alice", "bob"],
-  "$HOME/projects/another": ["carol"]
+  "ai_description_role": "code-author",
+  "project_settings": {
+    "$HOME/projects/myproject": {
+      "ai_description_role": "some-other-role",
+      "pull_request_reviewers": ["alice", "bob"]
+    },
+    "$HOME/projects/another": {
+      "pull_request_reviewers": ["carol"]
+    }
+  }
 }
-

@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
+#
+# @flag -d --debug Turn on debug mode
+# @option -c --config=$HOME/.config/koshi/config.json <CONFIG>  Path to the config file.
+#
 # @describe
 # Koshi: Give your JJ projects a powerful lift
-# @flag -d --debug Turn on debug mode
 
 set -uo pipefail
 
@@ -13,11 +16,15 @@ for dep in jj argc gum aichat gh; do
 done
 
 # @cmd Generate and refine Jujutsu commit descriptions with AI
-# @option -r --role! <ROLE> Role to use for making description.
+# @alias ad
+#
+# @option -r --role <ROLE> Role to use for making description.
 # @option -t --ticket <TICKET> Ticket this commit is related to.
 # @flag -c --commit Commit in addition to creating the description.
 # @flag -p --pull_request Create a pull request.
+#
 # @describe
+#
 # Uses a conversational AI to generate and iteratively refine commit
 # descriptions for your current Jujutsu commit. AI suggestions are provided
 # based on your diffs, and you may interactively improve the description or
@@ -39,11 +46,21 @@ done
 # 5. Optionally edit the description manually
 # 6. Optionally commit the change (with --commit or -c)
 # 7. Optionally create/update a pull request (with --pull-request or -p)
+#
 function ai-desc() {
   [[ -v argc_debug ]] && set -x
 
   assert_jj_repo
   assert_non_empty_commit
+
+  local role
+  if [[ -v argc_role ]]; then
+    role="$argc_role"
+  else
+    role="$(ai_description_role "$PWD")"
+    local ret=$?
+    (( $ret != 0 )) && exit $ret
+  fi
 
   jj diff --stat
   echo
@@ -58,7 +75,7 @@ function ai-desc() {
     prompt="$prompt\n\ncurrent change description:\n$current_description"
   fi
 
-  local description="$(chat 'generating description' $argc_role --empty-session --file='`jj diff --git`' "$prompt")"
+  local description="$(chat 'generating description' $role --empty-session --file='`jj diff --git`' "$prompt")"
   while true; do
     echo -e 'commit description:\n'
     gum format <<< "$description"
@@ -66,7 +83,7 @@ function ai-desc() {
     prompt="$(gum input --placeholder='suggest refinements, empty input to accept')"
     (( $? == 130 )) && exit 130
     [[ -z "$prompt" ]] && break
-    description="$(chat 'updating description' $argc_role "$prompt")"
+    description="$(chat 'updating description' $role "$prompt")"
   done
 
   jj desc --quiet --stdin <<< "$description"
@@ -88,6 +105,7 @@ function ai-desc() {
 }
 
 # @cmd Create and update GitHub pull requests from Jujutsu commits
+#
 # @describe
 # Integrates Jujutsu with GitHub pull requests, providing a streamlined workflow
 # for creating and updating PRs from jj-managed repositories.
@@ -102,6 +120,7 @@ function ai-desc() {
 # The PR base branch is automatically determined by finding the latest ancestor
 # with a bookmark. The first line of the commit description becomes the PR
 # title.
+#
 function pr() {
   [[ -v argc_debug ]] && set -x
 
@@ -289,8 +308,8 @@ function update_pull_request_reviewers() {
 # PR reviewers.
 function select_pull_request_reviewers() {
   local pr="$1"; shift
-  local cwd="${PWD/#$HOME/\$HOME}"
-  local all=($(jq -r "(.[\"$cwd\"] // [])[]" ~/.config/koshi/reviewers.json))
+  local all=($(jq -r --arg pwd "${PWD/#$HOME/\$HOME}" '(.project_settings[$pwd].reviewers // [])[]' "$(config)"))
+
   local cur=()
   if [[ -n "$pr" ]]; then
     cur=($(gh pr view "$pr" --json reviewRequests --jq '.reviewRequests[].login'))
@@ -298,6 +317,7 @@ function select_pull_request_reviewers() {
   fi
   if (( ${#all[*]} == 0 )); then
     gum log -l warn 'unable to determine pull request reviewers'
+    echo >&2
     return 0
   fi
   gum choose \
@@ -308,6 +328,41 @@ function select_pull_request_reviewers() {
       --selected="$(echo ${cur[*]} | tr ' ' ,)" ${all[@]}
   # This is Ctrl-C
   (( $? == 130 )) && exit 130
+}
+
+# Determines the AI description role for a given directory path.
+# Looks up the role in the config file, first checking for a project-specific
+# role at .project_settings[$pwd].ai_description_role, then falling back to the
+# top-level .ai_description_role if not found. Returns 1 if no role is
+# configured.
+function ai_description_role() {
+  local pwd="${1/#$HOME/\$HOME}"
+  local role="$(cat "$(config)" | jq -r --arg pwd "$pwd" '
+    # First try to get project-specific role
+    if .project_settings[$pwd].ai_description_role then
+      .project_settings[$pwd].ai_description_role
+    # Fall back to top-level ai_description_role
+    elif .ai_description_role then
+      .ai_description_role
+    else
+      null
+    end')"
+  if [[ -z "$role" ]]; then
+    echo "Cannot determine AI description role for '$pwd'" >&2
+    return 1
+  fi
+  echo "$role"
+}
+
+# Returns the expanded config file path from the --config option.
+# Expands $HOME in the path and exits with error if the file doesn't exist.
+function config() {
+  local p="${argc_config/\$HOME/$HOME}"
+  if [[ ! -f "$p" ]]; then
+    echo "Config file '$p' is not found" >&2
+    exit 1
+  fi
+  echo "$p"
 }
 
 # Prints the union of two sets; elements cannot contain spaces.

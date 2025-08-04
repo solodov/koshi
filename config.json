@@ -1,0 +1,13 @@
+{
+	"ai_description_role": "generic-role",
+	"project_settings": {
+		"$HOME/projects/myproject": {
+			"ai_description_role": "project-role",
+			"reviewers": ["alice", "bob"]
+		},
+		"$HOME/projects/another": {
+			"ai_description_role": "project-role",
+			"reviewers": ["carol"]
+		}
+	}
+}
