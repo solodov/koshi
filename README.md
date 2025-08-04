@@ -21,7 +21,7 @@
 
 ## Requirements
 
-- [jj](https://github.com/martinvonz/jj) (Jujutsu)
+- [jj](https://github.com/jj-vcs/jj) (Jujutsu)
 - [argc](https://github.com/sigoden/argc)
 - [gum](https://github.com/charmbracelet/gum)
 - [aichat](https://github.com/sigoden/aichat)
