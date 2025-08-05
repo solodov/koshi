@@ -1,20 +1,29 @@
 #!/usr/bin/env bash
 #
+# @meta version 0.1.0
+# @meta require-tools jj,gh,gum,aichat,jq
+# @meta combine-shorts
+#
 # @flag -d --debug Turn on debug mode
 # @option -c --config=$HOME/.config/koshi/config.json <CONFIG>  Path to the config file.
 #
 # @describe
 #
 # Koshi: Give your JJ projects a powerful lift
+#
+# A command-line tool that enhances Jujutsu (jj) version control with AI-powered
+# commit descriptions and streamlined GitHub integration.
+#
 
 set -uo pipefail
 
-for dep in jj argc gum aichat gh; do
-  if ! command -v "$dep" &>/dev/null; then
-    echo "Error: Required dependency '$dep' is not installed or not in PATH." >&2
-    exit 1
-  fi
-done
+# argc is the CLI parser that runs this script and checks for other
+# dependencies. We must manually verify argc is available before it can do its
+# work.
+if ! command -v argc &>/dev/null; then
+  echo "Error: Required dependency 'argc' is not installed or not in PATH." >&2
+  exit 1
+fi
 
 # @cmd Generate and refine Jujutsu commit descriptions with AI
 # @alias ad
@@ -29,24 +38,15 @@ done
 # Uses a conversational AI to generate and iteratively refine commit
 # descriptions for your current Jujutsu commit. AI suggestions are provided
 # based on your diffs, and you may interactively improve the description or
-# accept as-is.
+# accept as is.
 #
-# The tool will:
-# • Refuse to proceed if the commit is empty
-# • Generate an initial commit description using the diff and an AI assistant
-# • Allow you to suggest refinements interactively, or accept the current
-#   suggestion
-# • Apply the final description to the commit
-# • Optionally, ask if you want to hand-edit or create a new commit
-#
-# WORKFLOW:
+# Workflow:
 # 1. Ensure current commit (@) is not empty
 # 2. Generate a proposed commit description using the AI assistant
 # 3. Optionally refine the suggestion by entering feedback
 # 4. Write the description with 'jj desc'
-# 5. Optionally edit the description manually
-# 6. Optionally commit the change (with --commit or -c)
-# 7. Optionally create/update a pull request (with --pull-request or -p)
+# 5. Optionally commit the change (with --commit or -c)
+# 6. Optionally create/update a pull request (with --pull_request or -p)
 #
 function ai-desc() {
   [[ -v argc_debug ]] && set -x
@@ -113,16 +113,14 @@ function ai-desc() {
 # Integrates Jujutsu with GitHub pull requests, providing a streamlined workflow
 # for creating and updating PRs from jj-managed repositories.
 #
-# The tool will:
-# • Validate that the current commit (@) is not empty
-# • Open an editor to update the commit description (includes PR template for
-#   new PRs)
-# • Push the current commit to GitHub using 'jj git push'
-# • Create or update a GitHub PR based on the commit
+# This command displays your commit description (with an option to edit it),
+# pushes your commit to GitHub, and then creates a new PR or updates an existing
+# one. When creating or updating a PR, you'll be prompted to select reviewers
+# from your configured list.
 #
 # The PR base branch is automatically determined by finding the latest ancestor
 # with a bookmark. The first line of the commit description becomes the PR
-# title.
+# title, and the remaining lines form the PR body.
 #
 function pull-request() {
   [[ -v argc_debug ]] && set -x
@@ -154,6 +152,8 @@ function pull-request() {
 #
 # Without flags, displays the current configuration file contents. With the
 # --edit flag, opens the configuration file in your default editor ($EDITOR).
+#
+# Default config location: ~/.config/koshi/config.json (override with --config)
 #
 function config() {
   if [[ -v argc_edit ]]; then
