@@ -42,6 +42,17 @@ koshi pr
 
 This command lets you review or edit your commit description, pushes your commit to GitHub, and creates or updates a pull request. When opening or updating a PR, Koshi will prompt you to select reviewers interactively based on your configuration.
 
+### Display or Edit Configuration
+
+```sh
+koshi config [--edit]
+```
+
+- Without flags: Displays the current configuration file contents
+- `--edit`: Opens the configuration file in your default editor (`$EDITOR`)
+
+This command provides quick access to view or modify your koshi configuration, including AI roles and project-specific settings. The config file location defaults to `~/.config/koshi/config.json` but can be overridden with the global `--config` option.
+
 ---
 
 ## Requirements

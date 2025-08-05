@@ -4,6 +4,7 @@
 # @option -c --config=$HOME/.config/koshi/config.json <CONFIG>  Path to the config file.
 #
 # @describe
+#
 # Koshi: Give your JJ projects a powerful lift
 
 set -uo pipefail
@@ -139,6 +140,27 @@ function pull-request() {
   fi
 
   create_or_update_pull_request
+}
+
+# @cmd Display or edit the koshi configuration file
+# @alias c
+#
+# @flag -e --edit Edit the config
+#
+# @describe
+#
+# Manages the koshi configuration file that controls project-specific settings
+# and AI behavior.
+#
+# Without flags, displays the current configuration file contents. With the
+# --edit flag, opens the configuration file in your default editor ($EDITOR).
+#
+function config() {
+  if [[ -v argc_edit ]]; then
+    "$EDITOR" "$(config_path)"
+    exit $?
+  fi
+  cat "$(config_path)"
 }
 
 # Prompt the user for confirmation using gum.
@@ -310,7 +332,7 @@ function update_pull_request_reviewers() {
 # PR reviewers.
 function select_pull_request_reviewers() {
   local pr="$1"; shift
-  local all=($(jq -r --arg pwd "${PWD/#$HOME/\$HOME}" '(.project_settings[$pwd].reviewers // [])[]' "$(config)"))
+  local all=($(jq -r --arg pwd "${PWD/#$HOME/\$HOME}" '(.project_settings[$pwd].reviewers // [])[]' "$(config_path)"))
 
   local cur=()
   if [[ -n "$pr" ]]; then
@@ -339,7 +361,7 @@ function select_pull_request_reviewers() {
 # configured.
 function ai_description_role() {
   local pwd="${1/#$HOME/\$HOME}"
-  local role="$(cat "$(config)" | jq -r --arg pwd "$pwd" '
+  local role="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
     # First try to get project-specific role
     if .project_settings[$pwd].ai_description_role then
       .project_settings[$pwd].ai_description_role
@@ -358,7 +380,7 @@ function ai_description_role() {
 
 # Returns the expanded config file path from the --config option.
 # Expands $HOME in the path and exits with error if the file doesn't exist.
-function config() {
+function config_path() {
   local p="${argc_config/\$HOME/$HOME}"
   if [[ ! -f "$p" ]]; then
     echo "Config file '$p' is not found" >&2
