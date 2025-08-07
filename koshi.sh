@@ -240,7 +240,7 @@ function get_parent() {
      --no-graph \
      --limit 1 \
      -T bookmarks \
-     -r 'latest(ancestors(@-) & bookmarks())'
+     -r 'latest(ancestors(@-) & bookmarks())' | sed -e 's/\*$//'
 }
 
 # Returns the commit description of the current (working) commit.
@@ -307,7 +307,7 @@ function create_or_update_pull_request() {
     for i in $(select_pull_request_reviewers ''); do
       reviewers+=('--reviewer' "$i")
     done
-    if confirm 'create pr?' --default=No; then
+    if confirm 'create pr?'; then
       gum log -l info "creating new pull request with parent $parent"
       echo
       gh pr create \
