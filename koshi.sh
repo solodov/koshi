@@ -54,6 +54,8 @@ function ai-desc() {
   assert_jj_repo
   assert_non_empty_commit
 
+  cd "$(jj root)"
+
   local role
   if [[ -v argc_role ]]; then
     role="$argc_role"
@@ -129,6 +131,8 @@ function ai-split() {
   assert_jj_repo
   assert_non_empty_commit
 
+  cd "$(jj root)"
+
   gum log -l info 'splitting commit'
   echo
   jj split -m 'ai split' --quiet
@@ -167,6 +171,8 @@ function pull-request() {
   assert_jj_repo
   assert_non_empty_commit
   assert_gh_is_logged_in
+
+  cd "$(jj root)"
 
   echo -e 'commit description:\n'
   get_description | gum format
