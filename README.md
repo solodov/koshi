@@ -34,6 +34,23 @@ koshi ai-desc [--role "<ROLE>"] [--ticket "<TICKET_ID>"] [--commit] [--pull_requ
 
 If no `--role` is specified, Koshi uses the role from your configuration file (project-specific if available, otherwise the default).
 
+### Split Commits with AI Assistance
+
+```sh
+koshi ai-split [--role "<ROLE>"] [--ticket "<TICKET_ID>"] [--pull_request]
+```
+
+- `--role <ROLE>`: Override the configured AI assistant's role.
+- `--ticket <TICKET_ID>`: Reference a ticket or issue ID in the commit message.
+- `--pull_request`: Automatically open or update a GitHub pull request.
+
+This command intelligently splits the current Jujutsu commit into two separate commits:
+1. Interactively select which changes to include in the first commit using `jj split`
+2. Automatically generate an AI-powered description for the first split commit
+3. Position you to describe the second commit later
+
+This is particularly useful for breaking up large changes into more focused, atomic commits while leveraging AI assistance for writing clear commit messages.
+
 ### Create or Update Pull Request
 
 ```sh

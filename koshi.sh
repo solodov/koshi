@@ -105,6 +105,45 @@ function ai-desc() {
   fi
 }
 
+# @cmd Split a revision in two and describe the selected changes with AI
+# @alias s
+#
+# @option -r --role <ROLE> Role to use for making description.
+# @option -t --ticket <TICKET> Ticket this commit is related to.
+# @flag -p --pull_request Create a pull request.
+#
+# @describe
+#
+# Intelligently splits the current Jujutsu commit into two separate commits,
+# automatically generating an AI-powered description for the first split commit
+# while preserving your ability to describe the second commit later.
+#
+# This command combines Jujutsu's interactive split functionality with AI
+# assistance to help you break up large changes into more focused, atomic
+# commits. After splitting, it automatically positions you to describe the
+# first part of the split using the same AI-powered workflow as 'ai-desc'.
+#
+function ai-split() {
+  [[ -v argc_debug ]] && set -x
+
+  assert_jj_repo
+  assert_non_empty_commit
+
+  gum log -l info 'splitting commit'
+  echo
+  jj split -m 'ai split' --quiet
+  echo
+
+  local split_commit="$(jj op log --no-graph -n 1 | grep 'split commit' | awk '{print $3}')"
+  local change="$(jj log -r @ --no-graph -T change_id)"
+  jj edit --quiet $(jj show -s -r $split_commit | grep 'Change ID' | awk '{print $3}')
+  gum log -l info 'making description'
+  echo
+
+  ai-desc
+  jj edit -r "$change" --quiet
+}
+
 # @cmd Create and update GitHub pull requests from Jujutsu commits
 # @alias pr
 #
