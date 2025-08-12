@@ -173,9 +173,9 @@ function pull-request() {
   assert_non_empty_commit
   assert_gh_is_logged_in
 
-  check-commit
-
   cd "$(jj root)"
+
+  check-commit
 
   echo -e 'commit description:\n'
   get_description | gum format
@@ -205,6 +205,8 @@ function check-commit() {
 
   assert_jj_repo
   assert_non_empty_commit
+
+  cd "$(jj root)"
 
   local pwd="${PWD/#$HOME/\$HOME}"
   local commands
