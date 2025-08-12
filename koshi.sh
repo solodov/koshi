@@ -103,6 +103,7 @@ function ai-desc() {
   fi
 
   if [[ -v argc_commit ]]; then
+    check-commit
     jj new --quiet
   fi
 }
@@ -172,6 +173,8 @@ function pull-request() {
   assert_non_empty_commit
   assert_gh_is_logged_in
 
+  check-commit
+
   cd "$(jj root)"
 
   echo -e 'commit description:\n'
@@ -183,6 +186,40 @@ function pull-request() {
   fi
 
   create_or_update_pull_request
+}
+
+# @cmd Runs checks on the current commit
+# @alias cc
+#
+# @describe
+#
+# Runs all commit validation commands defined for the current project in the
+# koshi config file.
+#
+# Each command is executed in sequence for the current commit in the current
+# Jujutsu (jj) repository. If any check fails (non-zero exit), the command exits
+# immediately with an error.
+#
+function check-commit() {
+  [[ -v argc_debug ]] && set -x
+
+  assert_jj_repo
+  assert_non_empty_commit
+
+  local pwd="${PWD/#$HOME/\$HOME}"
+  local commands
+  readarray -t commands < <(
+    jq -r \
+       --arg pwd "$pwd" \
+       '.project_settings[$pwd].check_commit_commands // [] | .[]' \
+       "$(config_path)"
+  )
+  for cmd in "${commands[@]}"; do
+    gum log -l info "checking commit: $cmd"
+    $cmd > /dev/null
+    local ret=$?
+    (( $ret != 0 )) && exit $ret
+  done
 }
 
 # @cmd Display or edit the koshi configuration file

@@ -16,6 +16,8 @@
   Uses [gum](https://github.com/charmbracelet/gum) for beautiful, user-friendly command-line interactions and formatting.
 - **Smart reviewer management**
   Select reviewers for PRs interactively; merges suggestions from your config and any previous PR reviewers.
+- **Automated commit validation**
+  Run project-specific checks on commits before creating pull requests to ensure code quality.
 
 ---
 
@@ -58,6 +60,14 @@ koshi pr
 ```
 
 This command lets you review or edit your commit description, pushes your commit to GitHub, and creates or updates a pull request. When opening or updating a PR, Koshi will prompt you to select reviewers interactively based on your configuration.
+
+### Check Commit
+
+```sh
+koshi check-commit
+```
+
+Runs all configured validation commands for the current project on the current commit. This command executes each check sequentially and exits immediately if any check fails. It's automatically run before creating pull requests to ensure code quality standards are met.
 
 ### Display or Edit Configuration
 
@@ -120,11 +130,13 @@ Koshi uses a single configuration file at `~/.config/koshi/config.json` to manag
   "project_settings": {
     "$HOME/projects/myproject": {
       "ai_description_role": "backend-engineer",
-      "reviewers": ["alice", "bob"]
+      "reviewers": ["alice", "bob"],
+      "check_commit_commands": ["cargo check", "cargo test"]
     },
     "$HOME/projects/frontend": {
       "ai_description_role": "frontend-developer",
-      "reviewers": ["carol", "dave"]
+      "reviewers": ["carol", "dave"],
+      "check_commit_commands": ["npm run lint", "npm test"]
     }
   }
 }
@@ -144,6 +156,7 @@ For each project, you can configure:
 
 - **`ai_description_role`**: Project-specific AI role that overrides the global default
 - **`reviewers`**: Array of GitHub usernames to suggest as default reviewers for pull requests
+- **`check_commit_commands`**: Array of shell commands to run for commit validation. Each command is executed in sequence, and if any command fails (returns non-zero exit code), the check-commit process stops immediately with an error.
 
 ### What is an AI Role?
 
@@ -180,6 +193,19 @@ When creating or updating a pull request, Koshi will:
 2. Merge these with any existing reviewers on the pull request
 3. Present the combined set for interactive selection
 
+### Commit Validation
+
+The `check_commit_commands` field allows you to define project-specific validation rules that run automatically:
+
+- **When manually invoked**: Run `koshi check-commit` to validate the current commit
+- **Before pull requests**: Automatically runs before creating or updating PRs (when using `--pull_request` flag or `koshi pr` command)
+- **Common use cases**: Linting, type checking, running tests, checking formatting
+
+Commands are executed in the repository root and their output is suppressed unless they fail. Examples include:
+- Rust projects: `["cargo check", "cargo fmt --check", "cargo clippy"]`
+- Node.js projects: `["npm run lint", "npm test", "npm run type-check"]`
+- Python projects: `["ruff check", "mypy .", "pytest"]`
+
 ---
 
 ## Example Workflow
@@ -192,7 +218,8 @@ $ cat > ~/.config/koshi/config.json << EOF
   "project_settings": {
     "$HOME/projects/backend": {
       "ai_description_role": "backend-engineer",
-      "reviewers": ["alice", "bob", "charlie"]
+      "reviewers": ["alice", "bob", "charlie"],
+      "check_commit_commands": ["cargo check", "cargo test"]
     }
   }
 }
@@ -211,11 +238,12 @@ Koshi will:
 1. Show the diff
 2. Use the "backend-engineer" AI role to propose a commit message
 3. Let you refine it interactively
-4. Commit the changes
-5. Create a PR with `alice`, `bob`, and `charlie` as suggested reviewers
+4. Run `cargo check` and `cargo test` to validate the commit
+5. Commit the changes
+6. Create a PR with `alice`, `bob`, and `charlie` as suggested reviewers
 
 ---
 
 ## License
 
-MIT (see LICENSE).
+MIT (see LICENSE)

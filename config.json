@@ -3,7 +3,8 @@
 	"project_settings": {
 		"$HOME/projects/myproject": {
 			"ai_description_role": "project-role",
-			"reviewers": ["alice", "bob"]
+			"reviewers": ["alice", "bob"],
+      "check_commit_commands": ["cargo check", "biome lint"],
 		},
 		"$HOME/projects/another": {
 			"ai_description_role": "project-role",
