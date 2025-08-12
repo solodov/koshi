@@ -99,11 +99,12 @@ function ai-desc() {
   # fi
 
   if [[ -v argc_pull_request ]]; then
+    check-commit
     create_or_update_pull_request
   fi
 
   if [[ -v argc_commit ]]; then
-    check-commit
+    [[ -v argc_pull_request ]] || check-commit
     jj new --quiet
   fi
 }
