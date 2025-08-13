@@ -193,6 +193,52 @@ function pull-request() {
   create_or_update_pull_request
 }
 
+# @cmd Merge pull request associated with the current commit's bookmark
+# @alias m
+#
+# @flag -a --admin Merge using admin privileges
+#
+# Merges the GitHub pull request corresponding to the current Jujutsu commit's
+# bookmark.
+#
+# The command locates the GitHub pull request associated with the active
+# commit's jj bookmark (branch). It fails if there is no bookmark, or if the
+# bookmark is not pushed to the remote. If a matching pull request exists, it is
+# merged (optionally with admin rights). After merging, the working copy is
+# updated to track the latest upstream changes.
+#
+function merge-pull-request() {
+  [[ -n "${argc_debug:-}" ]] && set -x
+  assert_jj_repo
+  assert_non_empty_commit
+  assert_gh_is_logged_in
+
+  cd "$(jj root)"
+
+  local bookmark="$(jj log --color never --no-graph -T bookmarks -r @)"
+
+  if [[ -z "$bookmark" ]]; then
+    gum log -l error \
+        'commit does not have a bookmark, cannot create pull request'
+    exit 1
+  elif [[ "$bookmark" =~ \*$ ]]; then
+    gum log -l error 'commit has not been pushed to remote'
+    exit 1
+  fi
+
+  local pr="$(gh pr list -H "$bookmark" --json number | jq -r '.[0].number')"
+  if [[ "$pr" == 'null' ]]; then
+    gum log -l error 'current commit does not have a pull request'
+    exit 1
+  fi
+
+  local admin=''
+  [[ -n "${argc_admin:-}" ]] && admin='--admin'
+  gh pr merge "$pr" "$admin"
+
+  jj edit -r @+ 2>/dev/null || jj new main
+}
+
 # @cmd Runs checks on the current commit
 # @alias cc
 #

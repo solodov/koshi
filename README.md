@@ -63,6 +63,20 @@ koshi pr
 
 This command lets you review or edit your commit description, pushes your commit to GitHub, and creates or updates a pull request. When opening or updating a PR, Koshi will prompt you to select reviewers interactively based on your configuration.
 
+### Merge Pull Request
+
+```sh
+koshi merge-pull-request
+```
+
+Merges the GitHub pull request associated with the current Jujutsu commit. This command:
+
+- Verifies a pull request exists for the current commit
+- Checks that the associated commit has a bookmark and has been pushed to the remote
+- If all checks pass, merges the pull request on GitHub
+
+If any required conditions are not met (no bookmark, not pushed, no pull request), the command will display an error and exit.
+
 ### Check Commit
 
 ```sh
@@ -249,3 +263,4 @@ Koshi will:
 ## License
 
 MIT (see LICENSE)
+
