@@ -50,7 +50,7 @@ fi
 # 6. Optionally create/update a pull request (with --pull_request or -p)
 #
 function ai-desc() {
-  [[ -v argc_debug ]] && set -x
+  [[ -n "${argc_debug:-}" ]] && set -x
 
   assert_jj_repo
   assert_non_empty_commit
@@ -58,7 +58,7 @@ function ai-desc() {
   cd "$(jj root)"
 
   local role
-  if [[ -v argc_role ]]; then
+  if [[ -n "${argc_role:-}" ]]; then
     role="$argc_role"
   else
     role="$(ai_description_role "$PWD")"
@@ -70,10 +70,10 @@ function ai-desc() {
   echo
 
   local prompt='Write description for this change.'
-  if [[ -v argc_ticket ]]; then
+  if [[ -n "${argc_ticket:-}" ]]; then
     prompt="$prompt This change is related to ticket $argc_ticket."
   fi
-  if [[ -v argc_fixes ]]; then
+  if [[ -n "${argc_fixes:-}" ]]; then
     prompt="$prompt This change fixes ticket $argc_fixes."
   fi
 
@@ -102,13 +102,13 @@ function ai-desc() {
   #   echo
   # fi
 
-  if [[ -v argc_pull_request ]]; then
+  if [[ -n "${argc_pull_request:-}" ]]; then
     check-commit
     create_or_update_pull_request
   fi
 
-  if [[ -v argc_commit ]]; then
-    [[ -v argc_pull_request ]] || check-commit
+  if [[ -n "${argc_commit:-}" ]]; then
+    [[ -n "${argc_pull_request:-}" ]] || check-commit
     jj new --quiet
   fi
 }
@@ -132,7 +132,7 @@ function ai-desc() {
 # first part of the split using the same AI-powered workflow as 'ai-desc'.
 #
 function ai-split() {
-  [[ -v argc_debug ]] && set -x
+  [[ -n "${argc_debug:-}" ]] && set -x
 
   assert_jj_repo
   assert_non_empty_commit
@@ -172,7 +172,7 @@ function ai-split() {
 # title, and the remaining lines form the PR body.
 #
 function pull-request() {
-  [[ -v argc_debug ]] && set -x
+  [[ -n "${argc_debug:-}" ]] && set -x
 
   assert_jj_repo
   assert_non_empty_commit
@@ -206,7 +206,7 @@ function pull-request() {
 # immediately with an error.
 #
 function check-commit() {
-  [[ -v argc_debug ]] && set -x
+  [[ -n "${argc_debug:-}" ]] && set -x
 
   assert_jj_repo
   assert_non_empty_commit
@@ -245,7 +245,7 @@ function check-commit() {
 # Default config location: ~/.config/koshi/config.json (override with --config)
 #
 function config() {
-  if [[ -v argc_edit ]]; then
+  if [[ -n "${argc_edit:-}" ]]; then
     "$EDITOR" "$(config_path)"
     exit $?
   fi
