@@ -30,6 +30,7 @@ fi
 #
 # @option -r --role <ROLE> Role to use for making description.
 # @option -t --ticket <TICKET> Ticket this commit is related to.
+# @option -f --fixes <TICKET> Ticket this commit fixes.
 # @flag -c --commit Commit in addition to creating the description.
 # @flag -p --pull_request Create a pull request.
 #
@@ -68,9 +69,12 @@ function ai-desc() {
   jj diff --stat
   echo
 
-  local prompt='write description for this change'
+  local prompt='Write description for this change.'
   if [[ -v argc_ticket ]]; then
-    prompt="$prompt. this change is related to ticket $argc_ticket."
+    prompt="$prompt This change is related to ticket $argc_ticket."
+  fi
+  if [[ -v argc_fixes ]]; then
+    prompt="$prompt This change fixes ticket $argc_fixes."
   fi
 
   local current_description="$(get_description)"

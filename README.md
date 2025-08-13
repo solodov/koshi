@@ -23,14 +23,16 @@
 
 ## Usage
 
+
 ### Generate/Refine Commit Message with AI
 
 ```sh
-koshi ai-desc [--role "<ROLE>"] [--ticket "<TICKET_ID>"] [--commit] [--pull_request]
+koshi ai-desc [--role "<ROLE>"] [--ticket "<TICKET_ID>"] [--fixes "<TICKET_ID>"] [--commit] [--pull_request]
 ```
 
 - `--role <ROLE>`: Override the configured AI assistant's role.
 - `--ticket <TICKET_ID>`: Reference a ticket or issue ID in the commit message.
+- `--fixes <TICKET_ID>`: Indicate a ticket that this commit fixes (the prompt to the AI assistant will explicitly mention that this change fixes the provided ticket).
 - `--commit`: After confirming the description, automatically create a new commit.
 - `--pull_request`: Automatically open or update a GitHub pull request.
 
