@@ -199,14 +199,25 @@ function pull-request() {
 # @flag -a --admin Merge using admin privileges
 # @flag -f --force Force merge even if the bookmark hasn't been pushed to remote.
 #
+# @describe
+#
 # Merges the GitHub pull request corresponding to the current Jujutsu commit's
 # bookmark.
 #
 # The command locates the GitHub pull request associated with the active
 # commit's jj bookmark (branch). It fails if there is no bookmark, or if the
-# bookmark is not pushed to the remote. If a matching pull request exists, it is
-# merged (optionally with admin rights). After merging, the working copy is
-# updated to track the latest upstream changes.
+# bookmark is not pushed to the remote (unless --force is used). If a matching
+# pull request exists, it is merged (optionally with admin rights).
+#
+# After successfully merging the pull request:
+# 1. If a commit exists after the merged one (@+), moves to it and rebases it
+#    onto the parent of the merged commit
+# 2. If no subsequent commit exists, creates a new empty commit on trunk()
+# 3. Abandons the merged commit locally (unless --force was used) since it's
+#    now part of the main branch on GitHub
+#
+# This automatic workspace management ensures a clean local commit history and
+# positions you to continue working without manual cleanup steps.
 #
 function merge-pull-request() {
   [[ -n "${argc_debug:-}" ]] && set -x
