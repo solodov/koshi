@@ -66,7 +66,7 @@ This command lets you review or edit your commit description, pushes your commit
 ### Merge Pull Request
 
 ```sh
-koshi merge-pull-request
+koshi merge-pull-request [--force]
 ```
 
 Merges the GitHub pull request associated with the current Jujutsu commit. This command:
@@ -74,6 +74,9 @@ Merges the GitHub pull request associated with the current Jujutsu commit. This 
 - Verifies a pull request exists for the current commit
 - Checks that the associated commit has a bookmark and has been pushed to the remote
 - If all checks pass, merges the pull request on GitHub
+
+Options:
+- `--force`: Force merge even if the bookmark hasn't been pushed to remote. Use this when you want to merge a PR even though the local bookmark shows as unpushed (indicated by an asterisk suffix).
 
 If any required conditions are not met (no bookmark, not pushed, no pull request), the command will display an error and exit.
 
@@ -263,4 +266,3 @@ Koshi will:
 ## License
 
 MIT (see LICENSE)
-

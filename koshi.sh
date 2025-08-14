@@ -197,6 +197,7 @@ function pull-request() {
 # @alias m
 #
 # @flag -a --admin Merge using admin privileges
+# @flag -f --force Force merge even if the bookmark hasn't been pushed to remote.
 #
 # Merges the GitHub pull request corresponding to the current Jujutsu commit's
 # bookmark.
@@ -216,14 +217,19 @@ function merge-pull-request() {
   cd "$(jj root)"
 
   local bookmark="$(jj log --color never --no-graph -T bookmarks -r @)"
-
+  local forced=0
   if [[ -z "$bookmark" ]]; then
     gum log -l error \
         'commit does not have a bookmark, cannot create pull request'
     exit 1
   elif [[ "$bookmark" =~ \*$ ]]; then
-    gum log -l error 'commit has not been pushed to remote'
-    exit 1
+    if [[ -n "${argc_force:-}" ]]; then
+      bookmark="${bookmark%%\*}"
+      forced=1
+    else
+      gum log -l error 'commit has not been pushed to remote'
+      exit 1
+    fi
   fi
 
   local pr="$(gh pr list -H "$bookmark" --json number | jq -r '.[0].number')"
