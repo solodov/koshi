@@ -103,12 +103,12 @@ function ai-desc() {
   # fi
 
   if [[ -n "${argc_pull_request:-}" ]]; then
-    check-commit
+    (argc_hook='pre_commit'; run-hook)
     create_or_update_pull_request
   fi
 
   if [[ -n "${argc_commit:-}" ]]; then
-    [[ -n "${argc_pull_request:-}" ]] || check-commit
+    [[ -n "${argc_pull_request:-}" ]] || (argc_hook='pre_commit'; run-hook)
     jj new --quiet
   fi
 }
@@ -180,7 +180,7 @@ function pull-request() {
 
   cd "$(jj root)"
 
-  check-commit
+  (argc_hook='pre_commit'; run-hook)
 
   echo -e 'commit description:\n'
   get_description | gum format
@@ -252,6 +252,10 @@ function merge-pull-request() {
   local gh_cmd=(gh pr merge "$pr")
   [[ -n "${argc_admin:-}" ]] && gh_cmd+=(--admin)
   ${gh_cmd[@]}
+  local ret=$?
+  (( $ret != 0 )) && exit $ret
+
+  (argc_hook='post_pull_request_merge'; run-hook)
 
   local merged_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @)"
   local parent_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @-)"
@@ -265,23 +269,27 @@ function merge-pull-request() {
   fi
 }
 
-# @cmd Runs checks on the current commit
-# @alias cc
+# @cmd Run configured hooks for various lifecycle events
+# @alias r
+#
+# @arg hook![pre_commit|post_pull_request_create|post_pull_request_update|post_pull_request_merge]
 #
 # @describe
 #
-# Runs all commit validation commands defined for the current project in the
-# koshi config file.
+# Executes hook commands configured for specific lifecycle events in the koshi
+# workflow. Hooks are defined in the config file under project_settings for
+# each project path and can be triggered at different points:
+# - pre_commit: before committing changes
+# - post_pull_request_create/update/merge: after PR operations
 #
 # Each command is executed in sequence for the current commit in the current
 # Jujutsu (jj) repository. If any check fails (non-zero exit), the command exits
 # immediately with an error.
 #
-function check-commit() {
+function run-hook() {
   [[ -n "${argc_debug:-}" ]] && set -x
 
   assert_jj_repo
-  assert_non_empty_commit
 
   cd "$(jj root)"
 
@@ -290,11 +298,13 @@ function check-commit() {
   readarray -t commands < <(
     jq -r \
        --arg pwd "$pwd" \
-       '.project_settings[$pwd].check_commit_commands // [] | .[]' \
+       --arg hook "${argc_hook}_hook" \
+       '.project_settings[$pwd][$hook] // [] | .[]' \
        "$(config_path)"
   )
+  gum log -l info "running $argc_hook hook"
   for cmd in "${commands[@]}"; do
-    gum log -l info "checking commit: $cmd"
+    gum log -l info "hook command: $cmd"
     $cmd > /dev/null
     local ret=$?
     (( $ret != 0 )) && exit $ret
@@ -439,6 +449,7 @@ function create_or_update_pull_request() {
          --title "$(get_description | head -n 1)" \
          --body-file - < <(get_description | tail -n +3)
       echo
+      (argc_hook='post_pull_request_create'; run-hook)
     fi
   elif confirm 'update pr?' --default=Yes; then
     gum log -l info "updating pull request $pr for branch $bookmark"
@@ -449,6 +460,7 @@ function create_or_update_pull_request() {
        --body-file - < <(get_description | tail -n +3)
     echo
     update_pull_request_reviewers "$pr"
+    (argc_hook='post_pull_request_update'; run-hook)
   fi
 }
 

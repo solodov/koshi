@@ -17,7 +17,7 @@
 - **Smart reviewer management**
   Select reviewers for PRs interactively; merges suggestions from your config and any previous PR reviewers.
 - **Automated commit validation**
-  Run project-specific checks on commits before creating pull requests to ensure code quality.
+  Run project-specific hooks at various lifecycle events (pre-commit, post-PR create/update/merge) to ensure code quality and automate workflows.
 
 ---
 
@@ -88,13 +88,20 @@ After successfully merging a PR, koshi automatically manages your local workspac
 
 If any required conditions are not met (no bookmark, not pushed, no pull request), the command will display an error and exit.
 
-### Check Commit
+### Run Hooks
 
 ```sh
-koshi check-commit
+koshi run-hook <hook_type>
 ```
 
-Runs all configured validation commands for the current project on the current commit. This command executes each check sequentially and exits immediately if any check fails. It's automatically run before creating pull requests to ensure code quality standards are met.
+Executes hook commands configured for specific lifecycle events in the koshi workflow. Available hook types:
+
+- `pre_commit`: Runs before committing changes (automatically triggered before creating/updating pull requests)
+- `post_pull_request_create`: Runs after creating a new pull request
+- `post_pull_request_update`: Runs after updating an existing pull request
+- `post_pull_request_merge`: Runs after merging a pull request
+
+This command executes each configured hook command sequentially and exits immediately if any command fails. Hooks are defined in the configuration file under `project_settings` for each project path.
 
 ### Display or Edit Configuration
 
