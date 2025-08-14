@@ -69,14 +69,22 @@ This command lets you review or edit your commit description, pushes your commit
 koshi merge-pull-request [--force]
 ```
 
-Merges the GitHub pull request associated with the current Jujutsu commit. This command:
+Merges the GitHub pull request associated with the current Jujutsu commit and updates your local workspace. This command:
 
 - Verifies a pull request exists for the current commit
 - Checks that the associated commit has a bookmark and has been pushed to the remote
 - If all checks pass, merges the pull request on GitHub
+- After merging, automatically updates your local workspace:
+  - If you have a commit after the merged one, moves to it and rebases it onto the parent of the merged commit
+  - If no subsequent commit exists, creates a new empty commit on trunk
+  - Abandons the merged commit locally (unless `--force` was used)
 
 Options:
 - `--force`: Force merge even if the bookmark hasn't been pushed to remote. Use this when you want to merge a PR even though the local bookmark shows as unpushed (indicated by an asterisk suffix).
+
+#### Post-merge Workflow
+
+After successfully merging a PR, koshi automatically manages your local workspace to maintain a clean commit history. The merged commit is abandoned locally (since it's now part of the main branch on GitHub), and your working copy is repositioned either to the next commit in your stack (if one exists) or to a new empty commit on trunk. This ensures you're ready to continue working without manual cleanup steps.
 
 If any required conditions are not met (no bookmark, not pushed, no pull request), the command will display an error and exit.
 

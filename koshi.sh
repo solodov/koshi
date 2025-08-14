@@ -242,7 +242,16 @@ function merge-pull-request() {
   [[ -n "${argc_admin:-}" ]] && gh_cmd+=(--admin)
   ${gh_cmd[@]}
 
-  jj edit -r @+ 2>/dev/null || jj new main
+  local merged_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @)"
+  local parent_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @-)"
+  if jj edit -r @+ 2>/dev/null; then
+    jj rebase -s @ -d "$parent_change"
+  else
+    jj new 'trunk()'
+  fi
+  if (( ! $forced )); then
+    jj abandon "$merged_change"
+  fi
 }
 
 # @cmd Runs checks on the current commit
