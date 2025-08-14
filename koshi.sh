@@ -238,9 +238,9 @@ function merge-pull-request() {
     exit 1
   fi
 
-  local admin=''
-  [[ -n "${argc_admin:-}" ]] && admin='--admin'
-  gh pr merge "$pr" "$admin"
+  local gh_cmd=(gh pr merge "$pr")
+  [[ -n "${argc_admin:-}" ]] && gh_cmd+=(--admin)
+  ${gh_cmd[@]}
 
   jj edit -r @+ 2>/dev/null || jj new main
 }
