@@ -103,7 +103,6 @@ function ai-desc() {
   # fi
 
   if [[ -n "${argc_pull_request:-}" ]]; then
-    (argc_hook='pre_commit'; run-hook)
     create_or_update_pull_request
   fi
 
@@ -180,8 +179,6 @@ function pull-request() {
 
   cd "$(jj root)"
 
-  (argc_hook='pre_commit'; run-hook)
-
   echo -e 'commit description:\n'
   get_description | gum format
   echo
@@ -255,17 +252,25 @@ function merge-pull-request() {
   local ret=$?
   (( $ret != 0 )) && exit $ret
 
+  jj git fetch --quiet
+
   (argc_hook='post_pull_request_merge'; run-hook)
 
   local merged_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @)"
   local parent_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @-)"
+  local parent_bookmark="$(jj log --color never --no-graph -T bookmarks -r @-)"
   if jj edit -r @+ 2>/dev/null; then
-    jj rebase -s @ -d "$parent_change"
+    local trunk_bookmark="$(jj log --color never --no-graph -T bookmarks -r 'trunk()')"
+    if [[ "$parent_bookmark" == "$trunk_bookmark" ]]; then
+      jj rebase -s @ -d 'trunk()'
+    else
+      jj rebase -s @ -d "$parent_change"
+    fi
   else
     jj new 'trunk()'
   fi
   if (( ! $forced )); then
-    jj abandon "$merged_change"
+    jj abandon "$merged_change" 2>/dev/null || true
   fi
 }
 
@@ -423,6 +428,8 @@ function assert_gh_is_logged_in() {
 function create_or_update_pull_request() {
   assert_gh_is_logged_in
   assert_non_empty_description
+
+  (argc_hook='pre_commit'; run-hook)
 
   # Bookmark is fetched before push so that new/existing bookmark state can be
   # determined sinse 'jj git push' will create a new bookmark.
