@@ -113,7 +113,7 @@ function ai-desc() {
 }
 
 # @cmd Split a revision in two and describe the selected changes with AI
-# @alias s
+# @alias sp
 #
 # @option -r --role <ROLE> Role to use for making description.
 # @option -t --ticket <TICKET> Ticket this commit is related to.
