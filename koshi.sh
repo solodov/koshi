@@ -252,26 +252,39 @@ function merge-pull-request() {
   local ret=$?
   (( $ret != 0 )) && exit $ret
 
-  jj git fetch --quiet
+  local next_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @+)"
+  local this_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @)"
+  local prev_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @-)"
+  if (( ! $forced )); then
+    # If merge has been forced (there are local updates that are not in remove),
+    # then moving commit chains around might result in lost context. Rebasing is
+    # only done when merge was unforced.
+    if [[ -n "$next_change" ]]; then
+      # Non-empty next change means we're in a chain of commits. PR for the
+      # current change has just been merged, so now we're rebasing child of the
+      # current change onto the parent of the current change.
+      jj rebase --quiet -s "$next_change" -d "$prev_change"
+      jj edit --quiet -r "$next_change"
+    else
+      # Current change has no children, next change after current one is on trunk.
+      jj new --quiet 'trunk()'
+    fi
+    jj abandon --quiet "$this_change" 2>/dev/null || true
+  fi
+
+  # A nice state to leave commit tree in after merge is:
+  # - get the latest state from github (now trunk bookmark has advanced)
+  # - rebase all commits that were based on the previous trunk onto the new
+  #   trunk
+  # In order to do this children of the current trunk are stored first. Then
+  # after the fetch they are rebased onto the new trunk.
+  local trunk_children=($(jj log --no-graph -T 'change_id.short() ++ "\n"' -r 'children(trunk())'))
+  jj git --quiet fetch
+  for c in ${children[@]}; do
+    [[ "$c" != "$this_change" ]] && jj rebase --quiet -s $c -d 'trunk()'
+  done
 
   (argc_hook='post_pull_request_merge'; run-hook)
-
-  local merged_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @)"
-  local parent_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @-)"
-  local parent_bookmark="$(jj log --color never --no-graph -T bookmarks -r @-)"
-  if jj edit -r @+ 2>/dev/null; then
-    local trunk_bookmark="$(jj log --color never --no-graph -T bookmarks -r 'trunk()')"
-    if [[ "$parent_bookmark" == "$trunk_bookmark" ]]; then
-      jj rebase -s @ -d 'trunk()'
-    else
-      jj rebase -s @ -d "$parent_change"
-    fi
-  else
-    jj new 'trunk()'
-  fi
-  if (( ! $forced )); then
-    jj abandon "$merged_change" 2>/dev/null || true
-  fi
 }
 
 # @cmd Run configured hooks for various lifecycle events
