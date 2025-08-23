@@ -9,11 +9,8 @@
 #
 # @describe
 #
-# Koshi: Give your JJ projects a powerful lift
-#
-# A command-line tool that enhances Jujutsu (jj) version control with AI-powered
-# commit descriptions and streamlined GitHub integration.
-#
+# Koshi is a command-line tool that augments Jujutsu (jj) version control with
+# AI-generated commit descriptions and enhanced GitHub pull request workflows.
 
 set -uo pipefail
 
@@ -326,6 +323,36 @@ function run-hook() {
     $cmd > /dev/null
     local ret=$?
     (( $ret != 0 )) && exit $ret
+  done
+}
+
+# @cmd Fetch latest changes from remote and rebase trunk children
+# @alias f
+#
+# @describe
+#
+# Performs a git fetch and automatically rebases local commits that are children
+# of the previous trunk onto the updated trunk.  This keeps your feature or
+# topic branches up-to-date with the main branch and ensures local changes are
+# rebased cleanly after upstream updates.
+#
+function fetch() {
+  [[ -n "${argc_debug:-}" ]] && set -x
+
+  assert_jj_repo
+
+  cd "$(jj root)"
+
+  local trunk_children=($(jj log --no-graph -T 'change_id.short()++"\n"' -r 'children(trunk())'))
+  jj git fetch
+  for c in ${trunk_children[@]}; do
+    # Commit might not exist after fetch, therefore redirect stderr to
+    # /dev/null.  Value of $immutable can be empty string if commit is gone,
+    # 'true' if it's immutable or 'false' if it's mutable and can be rebased.
+    local immutable="$(jj log --no-graph -T 'immutable' -r $c 2>/dev/null)"
+    if [[ "$immutable" == 'false' ]]; then
+      jj rebase --quiet -s "$c" -d 'trunk()'
+    fi
   done
 }
 

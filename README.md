@@ -88,6 +88,20 @@ After successfully merging a PR, koshi automatically manages your local workspac
 
 If any required conditions are not met (no bookmark, not pushed, no pull request), the command will display an error and exit.
 
+### Fetch and Rebase Local Branches
+
+```sh
+koshi fetch
+```
+
+Fetches the latest changes from the remote repository and automatically rebases any local commits that are direct children of the trunk onto the updated trunk. This keeps your local feature or topic branches up to date with the main branch after upstream changes.
+
+- Runs `git fetch` via Jujutsu.
+- Rebases each mutable local commit that is a child of trunk onto the new trunk after fetch.
+- Commits that are immutable or already merged are not rebased.
+
+This command ensures your local stacked branches follow the latest trunk after synchronizing with upstream changes.
+
 ### Run Hooks
 
 ```sh
