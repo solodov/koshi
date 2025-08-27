@@ -409,7 +409,7 @@ function confirm() {
 # Retrieves the current bookmark for the working commit. If none exists,
 # creates a new bookmark using the template from jj config and returns its name.
 function get_bookmark() {
-  local bookmark="$(jj log --color never --no-graph -T bookmarks -r @ | sed -e 's/\*//')"
+  local bookmark="$(jj log --color never --no-graph -T bookmarks --limit 1 -r '(@::) & bookmarks()' | sed -e 's/\*//')"
   if [[ -z "$bookmark" ]]; then
     bookmark="$(jj log --color never --no-graph -T "$(jj config get templates.git_push_bookmark)" -r @)"
     gum log -l info "creating new bookmark $bookmark"
