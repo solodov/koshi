@@ -343,8 +343,10 @@ function fetch() {
 
   cd "$(jj root)"
 
+  local current_change="$(jj log --no-graph -T 'change_id.short()' -r @)"
   local trunk_children=($(jj log --no-graph -T 'change_id.short()++"\n"' -r 'children(trunk())'))
   jj git fetch
+
   for c in ${trunk_children[@]}; do
     # Commit might not exist after fetch, therefore redirect stderr to
     # /dev/null.  Value of $immutable can be empty string if commit is gone,
@@ -354,6 +356,14 @@ function fetch() {
       jj rebase --quiet -s "$c" -d 'trunk()'
     fi
   done
+
+  # Working commit before the fetch can become immutable after the fetch
+  # (e.g. PR merged in github), in which case JJ will create a new empty commit
+  # and make it current. When this happens rebase the new current (empty) commit
+  # on top of trunk.
+  if [[ "$current_change" != "$(jj log --no-graph -T 'change_id.short()' -r @)" ]]; then
+    jj rebase --quiet -s @ -d 'trunk()'
+  fi
 }
 
 # @cmd Display or edit the koshi configuration file
