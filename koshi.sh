@@ -28,6 +28,7 @@ fi
 # @option -r --role <ROLE> Role to use for making description.
 # @option -t --ticket <TICKET> Ticket this commit is related to.
 # @option -f --fixes <TICKET> Ticket this commit fixes.
+# @option -i --initial_prompt <PROMPT> Initial prompt.
 # @flag -c --commit Commit in addition to creating the description.
 # @flag -p --pull_request Create a pull request.
 #
@@ -66,7 +67,7 @@ function ai-desc() {
   jj diff --stat
   echo
 
-  local prompt='Write description for this change.'
+  local prompt="Write description for this change. ${argc_initial_prompt:-}".
   if [[ -n "${argc_ticket:-}" ]]; then
     prompt="$prompt This change is related to ticket $argc_ticket."
   fi
@@ -269,19 +270,9 @@ function merge-pull-request() {
     jj abandon --quiet "$this_change" 2>/dev/null || true
   fi
 
-  # A nice state to leave commit tree in after merge is:
-  # - get the latest state from github (now trunk bookmark has advanced)
-  # - rebase all commits that were based on the previous trunk onto the new
-  #   trunk
-  # In order to do this children of the current trunk are stored first. Then
-  # after the fetch they are rebased onto the new trunk.
-  local trunk_children=($(jj log --no-graph -T 'change_id.short() ++ "\n"' -r 'children(trunk())'))
-  jj git --quiet fetch
-  for c in ${children[@]}; do
-    [[ "$c" != "$this_change" ]] && jj rebase --quiet -s $c -d 'trunk()'
-  done
-
   (argc_hook='post_pull_request_merge'; run-hook)
+
+  fetch
 }
 
 # @cmd Run configured hooks for various lifecycle events
