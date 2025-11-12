@@ -332,7 +332,7 @@ function run-hook() {
 # branches up-to-date with the main branch and ensures local changes are rebased
 # cleanly after upstream updates.
 #
-function fetch() {
+fetch() {
   [[ -n "${argc_debug:-}" ]] && set -x
 
   assert_jj_repo
@@ -378,7 +378,7 @@ function fetch() {
 #
 # Default config location: ~/.config/koshi/config.json (override with --config)
 #
-function config() {
+config() {
   if [[ -n "${argc_edit:-}" ]]; then
     "$EDITOR" "$(config_path)"
     exit $?
@@ -388,7 +388,7 @@ function config() {
 
 # Prompt the user for confirmation using gum.
 # Returns 0 for yes, 1 for no, and exits with 130 on interrupt (Ctrl-C).
-function confirm() {
+confirm() {
   gum confirm "$@"
   case $? in
     0)
@@ -405,7 +405,7 @@ function confirm() {
 
 # Retrieves the current bookmark for the working commit. If none exists,
 # creates a new bookmark using the template from jj config and returns its name.
-function get_bookmark() {
+get_bookmark() {
   local bookmark="$(jj log --color never --no-graph -T bookmarks --limit 1 -r '(@::) & bookmarks()' | sed -e 's/\*//')"
   if [[ -z "$bookmark" ]]; then
     bookmark="$(jj log --color never --no-graph -T "$(jj config get templates.git_push_bookmark)" -r @)"
@@ -420,7 +420,7 @@ function get_bookmark() {
 # Returns the name of the most recent ancestor commit with a bookmark.
 # The "green" bookmark represents a clean-buildable state used for development.
 # When found as a parent, "trunk" is returned instead since all code merges to trunk.
-function get_parent() {
+get_parent() {
   local parent="$(jj log \
      --color never \
      --no-graph \
@@ -436,13 +436,13 @@ function get_parent() {
 }
 
 # Returns the commit description of the current (working) commit.
-function get_description() {
+get_description() {
   jj log --no-graph -T description -r @
 }
 
 # Starts an aichat session with the given title and role.
 # All additional arguments are forwarded to aichat.
-function chat() {
+chat() {
   local title="$1"; shift
   local role="$1"; shift
   gum spin --title="$title" -- \
@@ -450,7 +450,7 @@ function chat() {
 }
 
 # Checks that the current directory is a jj repository; exits with error if not.
-function assert_jj_repo() {
+assert_jj_repo() {
   if ! jj root &> /dev/null; then
     gum log -l error 'must be used inside jj repo'
     exit 1
@@ -458,12 +458,12 @@ function assert_jj_repo() {
 }
 
 # Checks that current commit has changes; exits when commit is empty.
-function assert_non_empty_commit() {
+assert_non_empty_commit() {
   [[ "$(jj log -r @ --no-graph -T empty)" == 'true' ]] && exit 0
 }
 
 # Checks that commit description has at least 3 lines; exits with error if not.
-function assert_non_empty_description() {
+assert_non_empty_description() {
   if (( $(get_description | wc -l) < 3 )); then
     gum log -l error 'description must have at lest 3 lines'
     exit 1
@@ -471,7 +471,7 @@ function assert_non_empty_description() {
 }
 
 # Checks that GitHub CLI is authorized; exits with error if not.
-function assert_gh_is_logged_in() {
+assert_gh_is_logged_in() {
   if ! gh auth status &> /dev/null; then
     gum log -l error 'gh is not authorized, run "gh auth login"'
     exit 1
@@ -480,7 +480,7 @@ function assert_gh_is_logged_in() {
 
 # Creates a new pull request or updates the existing one for the current
 # bookmark.
-function create_or_update_pull_request() {
+create_or_update_pull_request() {
   assert_gh_is_logged_in
   assert_non_empty_description
 
@@ -528,7 +528,7 @@ function create_or_update_pull_request() {
 
 # Adds reviewers selected by the user from a list merging config and current PR
 # reviewers.
-function set_pull_request_reviewers() {
+set_pull_request_reviewers() {
   local pr="$1"; shift
   local add=()
   for i in $(select_pull_request_reviewers "$pr"); do
@@ -541,7 +541,7 @@ function set_pull_request_reviewers() {
 
 # Synchronizes PR reviewers to match user selection from a merged config and
 # current list.
-function update_pull_request_reviewers() {
+update_pull_request_reviewers() {
   local pr="$1"; shift
   local sel=($(select_pull_request_reviewers "$pr"))
   local cur=($(gh pr view "$pr" --json reviewRequests --jq '.reviewRequests[].login'))
@@ -565,7 +565,7 @@ function update_pull_request_reviewers() {
 
 # Prompts the user to select reviewers from a merged list of config and current
 # PR reviewers.
-function select_pull_request_reviewers() {
+select_pull_request_reviewers() {
   local pr="$1"; shift
   local all=($(jq -r --arg pwd "${PWD/#$HOME/\$HOME}" '(.project_settings[$pwd].reviewers // [])[]' "$(config_path)"))
 
@@ -594,7 +594,7 @@ function select_pull_request_reviewers() {
 # role at .project_settings[$pwd].ai_description_role, then falling back to the
 # top-level .ai_description_role if not found. Returns 1 if no role is
 # configured.
-function ai_description_role() {
+ai_description_role() {
   local pwd="${1/#$HOME/\$HOME}"
   local role="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
     # First try to get project-specific role
@@ -619,7 +619,7 @@ function ai_description_role() {
 # .project_settings[$pwd].fetch_rebase_destination, then falling back to the
 # top-level .fetch_rebase_destination if not found. Defaults to 'trunk()' if
 # not configured.
-function fetch_rebase_destination() {
+fetch_rebase_destination() {
   local pwd="${1/#$HOME/\$HOME}"
   local destination="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
     # First try to get project-specific destination
@@ -636,7 +636,7 @@ function fetch_rebase_destination() {
 
 # Returns the expanded config file path from the --config option.
 # Expands $HOME in the path and exits with error if the file doesn't exist.
-function config_path() {
+config_path() {
   local p="${argc_config/\$HOME/$HOME}"
   if [[ ! -f "$p" ]]; then
     echo "Config file '$p' is not found" >&2
@@ -646,7 +646,7 @@ function config_path() {
 }
 
 # Prints the union of two sets; elements cannot contain spaces.
-function set_union() {
+set_union() {
   declare -A seen
   for i in $1 $2; do
     seen["$i"]=1
@@ -657,7 +657,7 @@ function set_union() {
 
 # Prints elements in the first set that are not in the second; elements cannot
 # contain spaces.
-function set_diff() {
+set_diff() {
   declare -A in2
   for i in $2; do
     in2["$i"]=1
