@@ -207,7 +207,9 @@ function pull-request() {
 # After successfully merging the pull request:
 # 1. If a commit exists after the merged one (@+), moves to it and rebases it
 #    onto the parent of the merged commit
-# 2. If no subsequent commit exists, creates a new empty commit on trunk()
+# 2. If no subsequent commit exists, creates a new empty commit on the
+#    configured rebase destination (defaults to trunk(), customizable via
+#    fetch_rebase_destination config setting)
 # 3. Abandons the merged commit locally (unless --force was used) since it's
 #    now part of the main branch on GitHub
 #
@@ -250,6 +252,7 @@ function merge-pull-request() {
   local ret=$?
   (( $ret != 0 )) && exit $ret
 
+  local rebase_destination="$(fetch_rebase_destination "$PWD")"
   local next_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @+)"
   local this_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @)"
   local prev_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @-)"
@@ -265,7 +268,7 @@ function merge-pull-request() {
       jj edit --quiet -r "$next_change"
     else
       # Current change has no children, next change after current one is on trunk.
-      jj new --quiet 'trunk()'
+      jj new --quiet "$rebase_destination"
     fi
     jj abandon --quiet "$this_change" 2>/dev/null || true
   fi
@@ -323,9 +326,11 @@ function run-hook() {
 # @describe
 #
 # Performs a git fetch and automatically rebases local commits that are children
-# of the previous trunk onto the updated trunk.  This keeps your feature or
-# topic branches up-to-date with the main branch and ensures local changes are
-# rebased cleanly after upstream updates.
+# of the configured rebase destination onto the updated destination. By default,
+# this is trunk(), but can be customized per-project using the
+# fetch_rebase_destination config setting. This keeps your feature or topic
+# branches up-to-date with the main branch and ensures local changes are rebased
+# cleanly after upstream updates.
 #
 function fetch() {
   [[ -n "${argc_debug:-}" ]] && set -x
@@ -334,8 +339,9 @@ function fetch() {
 
   cd "$(jj root)"
 
+  local rebase_destination="$(fetch_rebase_destination "$PWD")"
   local current_change="$(jj log --no-graph -T 'change_id.short()' -r @)"
-  local trunk_children=($(jj log --no-graph -T 'change_id.short()++"\n"' -r 'children(trunk())'))
+  local trunk_children=($(jj log --no-graph -T 'change_id.short()++"\n"' -r "children($rebase_destination)"))
   jj git fetch
 
   for c in ${trunk_children[@]}; do
@@ -344,7 +350,7 @@ function fetch() {
     # 'true' if it's immutable or 'false' if it's mutable and can be rebased.
     local immutable="$(jj log --no-graph -T 'immutable' -r $c 2>/dev/null)"
     if [[ "$immutable" == 'false' ]]; then
-      jj rebase --quiet -s "$c" -d 'trunk()'
+      jj rebase --quiet -s "$c" -d "$rebase_destination"
     fi
   done
 
@@ -353,7 +359,7 @@ function fetch() {
   # and make it current. When this happens rebase the new current (empty) commit
   # on top of trunk.
   if [[ "$current_change" != "$(jj log --no-graph -T 'change_id.short()' -r @)" ]]; then
-    jj rebase --quiet -s @ -d 'trunk()'
+    jj rebase --quiet -s @ -d "$rebase_destination"
   fi
 }
 
@@ -412,13 +418,21 @@ function get_bookmark() {
 }
 
 # Returns the name of the most recent ancestor commit with a bookmark.
+# The "green" bookmark represents a clean-buildable state used for development.
+# When found as a parent, "trunk" is returned instead since all code merges to trunk.
 function get_parent() {
-  jj log \
+  local parent="$(jj log \
      --color never \
      --no-graph \
      --limit 1 \
      -T bookmarks \
-     -r 'latest(ancestors(@-) & bookmarks())' | sed -e 's/\*$//'
+     -r 'latest(ancestors(@-) & bookmarks())' | sed -e 's/\*$//')"
+
+  if [[ "$parent" == 'green' ]]; then
+    echo 'trunk'
+  else
+    echo "$parent"
+  fi
 }
 
 # Returns the commit description of the current (working) commit.
@@ -597,6 +611,27 @@ function ai_description_role() {
     return 1
   fi
   echo "$role"
+}
+
+# Determines the fetch rebase destination for a given directory path.
+# Looks up the destination in the config file, first checking for a
+# project-specific destination at
+# .project_settings[$pwd].fetch_rebase_destination, then falling back to the
+# top-level .fetch_rebase_destination if not found. Defaults to 'trunk()' if
+# not configured.
+function fetch_rebase_destination() {
+  local pwd="${1/#$HOME/\$HOME}"
+  local destination="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
+    # First try to get project-specific destination
+    if .project_settings[$pwd].fetch_rebase_destination then
+      .project_settings[$pwd].fetch_rebase_destination
+    # Fall back to top-level fetch_rebase_destination
+    elif .fetch_rebase_destination then
+      .fetch_rebase_destination
+    else
+      "trunk()"
+    end')"
+  echo "$destination"
 }
 
 # Returns the expanded config file path from the --config option.

@@ -64,6 +64,10 @@ koshi pr
 
 This command lets you review or edit your commit description, pushes your commit to GitHub, and creates or updates a pull request. When opening or updating a PR, Koshi will prompt you to select reviewers interactively based on your configuration.
 
+#### PR Base Branch Selection
+
+The base branch for the pull request is automatically determined by finding the most recent ancestor commit with a bookmark. If the parent bookmark is `green` (which represents a clean-buildable state used for development), the PR will be created against `trunk` instead, since all code ultimately merges to trunk.
+
 ### Merge Pull Request
 
 ```sh
@@ -77,7 +81,7 @@ Merges the GitHub pull request associated with the current Jujutsu commit and up
 - If all checks pass, merges the pull request on GitHub
 - After merging, automatically updates your local workspace:
   - If you have a commit after the merged one, moves to it and rebases it onto the parent of the merged commit
-  - If no subsequent commit exists, creates a new empty commit on trunk
+  - If no subsequent commit exists, creates a new empty commit on the configured rebase destination (defaults to `trunk()`, customizable via `fetch_rebase_destination` config setting)
   - Abandons the merged commit locally (unless `--force` was used)
 
 Options:
@@ -85,7 +89,7 @@ Options:
 
 #### Post-merge Workflow
 
-After successfully merging a PR, koshi automatically manages your local workspace to maintain a clean commit history. The merged commit is abandoned locally (since it's now part of the main branch on GitHub), and your working copy is repositioned either to the next commit in your stack (if one exists) or to a new empty commit on trunk. This ensures you're ready to continue working without manual cleanup steps.
+After successfully merging a PR, koshi automatically manages your local workspace to maintain a clean commit history. The merged commit is abandoned locally (since it's now part of the main branch on GitHub), and your working copy is repositioned either to the next commit in your stack (if one exists) or to a new empty commit on the configured rebase destination (defaults to `trunk()`, customizable via `fetch_rebase_destination` config setting). This ensures you're ready to continue working without manual cleanup steps.
 
 If any required conditions are not met (no bookmark, not pushed, no pull request), the command will display an error and exit.
 
@@ -95,13 +99,13 @@ If any required conditions are not met (no bookmark, not pushed, no pull request
 koshi fetch
 ```
 
-Fetches the latest changes from the remote repository and automatically rebases any local commits that are direct children of the trunk onto the updated trunk. This keeps your local feature or topic branches up to date with the main branch after upstream changes.
+Fetches the latest changes from the remote repository and automatically rebases any local commits that are direct children of the configured rebase destination onto the updated destination. By default, this is `trunk()`, but can be customized per-project using the `fetch_rebase_destination` config setting. This keeps your local feature or topic branches up to date with the main branch after upstream changes.
 
 - Runs `git fetch` via Jujutsu.
-- Rebases each mutable local commit that is a child of trunk onto the new trunk after fetch.
+- Rebases each mutable local commit that is a child of the rebase destination onto the new destination after fetch.
 - Commits that are immutable or already merged are not rebased.
 
-This command ensures your local stacked branches follow the latest trunk after synchronizing with upstream changes.
+This command ensures your local stacked branches follow the latest rebase destination after synchronizing with upstream changes.
 
 ### Run Hooks
 
@@ -176,11 +180,13 @@ Koshi uses a single configuration file at `~/.config/koshi/config.json` to manag
 ```json
 {
   "ai_description_role": "code-author",
+  "fetch_rebase_destination": "trunk()",
   "project_settings": {
     "$HOME/projects/myproject": {
       "ai_description_role": "backend-engineer",
       "reviewers": ["alice", "bob"],
-      "check_commit_commands": ["cargo check", "cargo test"]
+      "check_commit_commands": ["cargo check", "cargo test"],
+      "fetch_rebase_destination": "green"
     },
     "$HOME/projects/frontend": {
       "ai_description_role": "frontend-developer",
@@ -196,6 +202,7 @@ Koshi uses a single configuration file at `~/.config/koshi/config.json` to manag
 #### Global Settings
 
 - **`ai_description_role`**: The default AI role to use when generating commit descriptions. This is used when no project-specific role is configured.
+- **`fetch_rebase_destination`**: The default rebase destination for the `fetch` and `merge-pull-request` commands. Defaults to `trunk()` if not specified. This can be any valid Jujutsu revset expression, such as a branch name or revset function.
 
 #### Project Settings
 
@@ -206,6 +213,7 @@ For each project, you can configure:
 - **`ai_description_role`**: Project-specific AI role that overrides the global default
 - **`reviewers`**: Array of GitHub usernames to suggest as default reviewers for pull requests
 - **`check_commit_commands`**: Array of shell commands to run for commit validation. Each command is executed in sequence, and if any command fails (returns non-zero exit code), the check-commit process stops immediately with an error.
+- **`fetch_rebase_destination`**: Project-specific rebase destination that overrides the global default. This can be any valid Jujutsu revset expression, such as a branch name (e.g., `"green"`, `"main"`) or revset function (e.g., `"trunk()"`, `"latest(main@origin)")`).
 
 ### What is an AI Role?
 
