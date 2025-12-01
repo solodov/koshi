@@ -410,7 +410,7 @@ get_bookmark() {
   if [[ -z "$bookmark" ]]; then
     bookmark="$(jj log --color never --no-graph -T "$(jj config get templates.git_push_bookmark)" -r @)"
     gum log -l info "creating new bookmark $bookmark"
-    jj bookmark create "$bookmark" -r @ --quiet
+    jj bookmark create --ignore-working-copy "$bookmark" -r @ --quiet
   else
     gum log -l info "using existing bookmark $bookmark"
   fi
@@ -422,14 +422,15 @@ get_bookmark() {
 # When found as a parent, "trunk" is returned instead since all code merges to trunk.
 get_parent() {
   local parent="$(jj log \
+     --ignore-working-copy \
      --color never \
      --no-graph \
      --limit 1 \
      -T bookmarks \
      -r 'latest(ancestors(@-) & bookmarks())' | sed -e 's/\*$//')"
 
-  if [[ "$parent" == 'green' ]]; then
-    echo 'trunk'
+  if [[ "$parent" =~ green ]]; then
+    echo "$(trunk)"
   else
     echo "$parent"
   fi
@@ -437,7 +438,12 @@ get_parent() {
 
 # Returns the commit description of the current (working) commit.
 get_description() {
-  jj log --no-graph -T description -r @
+  jj log --ignore-working-copy --no-graph -T description -r @
+}
+
+# Returns the name of the 'trunk' bookmark.
+trunk() {
+  jj log --ignore-working-copy --color never --no-graph -T bookmarks --limit 1 -r 'trunk()' | sed -e 's/\*//'
 }
 
 # Starts an aichat session with the given title and role.
