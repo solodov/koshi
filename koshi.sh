@@ -64,7 +64,7 @@ function ai-desc() {
     (( $ret != 0 )) && exit $ret
   fi
 
-  jj diff --stat
+  jj diff --ignore-working-copy --stat
   echo
 
   local prompt="Write description for this change. ${argc_initial_prompt:-}".
@@ -91,7 +91,7 @@ function ai-desc() {
     description="$(chat 'updating description' $role "$prompt")"
   done
 
-  jj desc --quiet --stdin <<< "$description"
+  jj desc --ignore-working-copy --quiet --stdin <<< "$description"
 
   # This might be useful in some circumstances, but so far it hasn't been very
   # useful. Disabling to simplify the workflow.
@@ -106,7 +106,7 @@ function ai-desc() {
 
   if [[ -n "${argc_commit:-}" ]]; then
     [[ -n "${argc_pull_request:-}" ]] || (argc_hook='pre_commit'; run-hook)
-    jj new --quiet
+    jj new --ignore-working-copy --quiet
   fi
 }
 
