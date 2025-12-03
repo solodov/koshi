@@ -340,15 +340,15 @@ fetch() {
   cd "$(jj root)"
 
   local rebase_destination="$(fetch_rebase_destination "$PWD")"
-  local current_change="$(jj log --no-graph -T 'change_id.short()' -r @)"
-  local trunk_children=($(jj log --no-graph -T 'change_id.short()++"\n"' -r "children($rebase_destination)"))
-  jj git fetch
+  local current_change="$(jj log --ignore-working-copy --no-graph -T 'change_id.short()' -r @)"
+  local trunk_children=($(jj log --ignore-working-copy --no-graph -T 'change_id.short()++"\n"' -r "children($rebase_destination)"))
+  jj git fetch 
 
   for c in ${trunk_children[@]}; do
     # Commit might not exist after fetch, therefore redirect stderr to
     # /dev/null.  Value of $immutable can be empty string if commit is gone,
     # 'true' if it's immutable or 'false' if it's mutable and can be rebased.
-    local immutable="$(jj log --no-graph -T 'immutable' -r $c 2>/dev/null)"
+    local immutable="$(jj log --ignore-working-copy --no-graph -T 'immutable' -r $c 2>/dev/null)"
     if [[ "$immutable" == 'false' ]]; then
       jj rebase --quiet -s "$c" -d "$rebase_destination"
     fi
