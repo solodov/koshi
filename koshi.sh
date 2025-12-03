@@ -101,7 +101,7 @@ ai-desc() {
   # fi
 
   if [[ -n "${argc_pull_request:-}" ]]; then
-    create_or_update_pull_request
+    create_or_update_pull_request "${argc_ticket:-}"
   fi
 
   if [[ -n "${argc_commit:-}" ]]; then
@@ -185,7 +185,7 @@ pull-request() {
     echo
   fi
 
-  create_or_update_pull_request
+  create_or_update_pull_request ''
 }
 
 # @cmd Merge pull request associated with the current commit's bookmark
@@ -406,9 +406,14 @@ confirm() {
 # Retrieves the current bookmark for the working commit. If none exists,
 # creates a new bookmark using the template from jj config and returns its name.
 get_bookmark() {
+  local ticket="${1:-}"
   local bookmark="$(jj log --color never --no-graph -T bookmarks --limit 1 -r '(@::) & bookmarks()' | sed -e 's/\*//')"
   if [[ -z "$bookmark" ]]; then
-    bookmark="$(jj log --color never --no-graph -T "$(jj config get templates.git_push_bookmark)" -r @)"
+    local template="$(jj config get templates.git_push_bookmark)"
+    if [[ -n "$ticket" ]]; then
+      template="$template ++ \"/$ticket\""
+    fi
+    bookmark="$(jj log --color never --no-graph -T "$template" -r @)"
     gum log -l info "creating new bookmark $bookmark"
     jj bookmark create --ignore-working-copy "$bookmark" -r @ --quiet
   else
@@ -428,9 +433,8 @@ get_parent() {
      --limit 1 \
      -T bookmarks \
      -r 'latest(ancestors(@-) & bookmarks())' | sed -e 's/\*$//')"
-
   if [[ "$parent" =~ green ]]; then
-    echo "$(trunk)"
+    echo 'main'
   else
     echo "$parent"
   fi
@@ -487,6 +491,8 @@ assert_gh_is_logged_in() {
 # Creates a new pull request or updates the existing one for the current
 # bookmark.
 create_or_update_pull_request() {
+  local ticket="$1"
+
   assert_gh_is_logged_in
   assert_non_empty_description
 
@@ -494,7 +500,7 @@ create_or_update_pull_request() {
 
   # Bookmark is fetched before push so that new/existing bookmark state can be
   # determined sinse 'jj git push' will create a new bookmark.
-  local bookmark="$(get_bookmark)"
+  local bookmark="$(get_bookmark "$ticket")"
 
   # Before pull request can be created a commit must be pushed to github.
   gum spin --title='pushing bookmark' -- jj git push -c @ --quiet
@@ -515,7 +521,7 @@ create_or_update_pull_request() {
          --head "$bookmark" \
          ${reviewers[@]} \
          --title "$(get_description | head -n 1)" \
-         --body-file - < <(get_description | tail -n +3)
+         --body-file - < <(get_description | tail -n +3) || exit 1
       echo
       (argc_hook='post_pull_request_create'; run-hook)
     fi
