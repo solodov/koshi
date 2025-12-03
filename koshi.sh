@@ -47,7 +47,7 @@ fi
 # 5. Optionally commit the change (with --commit or -c)
 # 6. Optionally create/update a pull request (with --pull_request or -p)
 #
-function ai-desc() {
+ai-desc() {
   [[ -n "${argc_debug:-}" ]] && set -x
 
   assert_jj_repo
@@ -128,7 +128,7 @@ function ai-desc() {
 # commits. After splitting, it automatically positions you to describe the
 # first part of the split using the same AI-powered workflow as 'ai-desc'.
 #
-function ai-split() {
+ai-split() {
   [[ -n "${argc_debug:-}" ]] && set -x
 
   assert_jj_repo
@@ -168,7 +168,7 @@ function ai-split() {
 # with a bookmark. The first line of the commit description becomes the PR
 # title, and the remaining lines form the PR body.
 #
-function pull-request() {
+pull-request() {
   [[ -n "${argc_debug:-}" ]] && set -x
 
   assert_jj_repo
@@ -216,7 +216,7 @@ function pull-request() {
 # This automatic workspace management ensures a clean local commit history and
 # positions you to continue working without manual cleanup steps.
 #
-function merge-pull-request() {
+merge-pull-request() {
   [[ -n "${argc_debug:-}" ]] && set -x
   assert_jj_repo
   assert_non_empty_commit
@@ -295,7 +295,7 @@ function merge-pull-request() {
 # Jujutsu (jj) repository. If any check fails (non-zero exit), the command exits
 # immediately with an error.
 #
-function run-hook() {
+run-hook() {
   [[ -n "${argc_debug:-}" ]] && set -x
 
   assert_jj_repo
