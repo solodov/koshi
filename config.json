@@ -7,7 +7,8 @@
       "pre_commit_hook": ["cargo check", "biome lint"],
       "post_pull_request_create_hook": ["commit-tickets in-progress"],
       "post_pull_request_update_hook": ["commit-tickets in-progress"],
-      "post_pull_request_merge_hook": ["commit-tickets close"]
+      "post_pull_request_merge_hook": ["commit-tickets close"],
+      "tug": true
 		},
 		"$HOME/projects/another": {
 			"ai_description_role": "project-role",

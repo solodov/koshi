@@ -18,8 +18,8 @@ set -uo pipefail
 # dependencies. We must manually verify argc is available before it can do its
 # work.
 if ! command -v argc &>/dev/null; then
-  echo "Error: Required dependency 'argc' is not installed or not in PATH." >&2
-  exit 1
+	echo "Error: Required dependency 'argc' is not installed or not in PATH." >&2
+	exit 1
 fi
 
 # @cmd Generate and refine Jujutsu commit descriptions with AI
@@ -48,66 +48,72 @@ fi
 # 6. Optionally create/update a pull request (with --pull_request or -p)
 #
 ai-desc() {
-  [[ -n "${argc_debug:-}" ]] && set -x
+	[[ -n "${argc_debug:-}" ]] && set -x
 
-  assert_jj_repo
-  assert_non_empty_commit
+	assert_jj_repo
+	assert_non_empty_commit
 
-  cd "$(jj root)"
+	cd "$(jj root)"
 
-  local role
-  if [[ -n "${argc_role:-}" ]]; then
-    role="$argc_role"
-  else
-    role="$(ai_description_role "$PWD")"
-    local ret=$?
-    (( $ret != 0 )) && exit $ret
-  fi
+	local role
+	if [[ -n "${argc_role:-}" ]]; then
+		role="$argc_role"
+	else
+		role="$(ai_description_role "$PWD")"
+		local ret=$?
+		(($ret != 0)) && exit $ret
+	fi
 
-  jj diff --ignore-working-copy --stat
-  echo
+	jj diff --ignore-working-copy --stat
+	echo
 
-  local prompt="Write description for this change. ${argc_initial_prompt:-}".
-  if [[ -n "${argc_ticket:-}" ]]; then
-    prompt="$prompt This change is related to ticket $argc_ticket."
-  fi
-  if [[ -n "${argc_fixes:-}" ]]; then
-    prompt="$prompt This change fixes ticket $argc_fixes."
-  fi
+	local prompt="Write description for this change. ${argc_initial_prompt:-}".
+	if [[ -n "${argc_ticket:-}" ]]; then
+		prompt="$prompt This change is related to ticket $argc_ticket."
+	fi
+	if [[ -n "${argc_fixes:-}" ]]; then
+		prompt="$prompt This change fixes ticket $argc_fixes."
+	fi
 
-  local current_description="$(get_description)"
-  if [[ -n "$current_description" ]]; then
-    prompt="$prompt\n\ncurrent change description:\n$current_description"
-  fi
+	local current_description="$(get_description)"
+	if [[ -n "$current_description" ]]; then
+		prompt="$prompt\n\ncurrent change description:\n$current_description"
+	fi
 
-  local description="$(chat 'generating description' $role --empty-session --file='`jj diff --git`' "$prompt")"
-  while true; do
-    echo -e 'commit description:\n'
-    gum format <<< "$description"
-    echo
-    prompt="$(gum input --placeholder='suggest refinements, empty input to accept')"
-    (( $? == 130 )) && exit 130
-    [[ -z "$prompt" ]] && break
-    description="$(chat 'updating description' $role "$prompt")"
-  done
+	local description="$(chat 'generating description' $role --empty-session --file='`jj diff --git`' "$prompt")"
+	while true; do
+		echo -e 'commit description:\n'
+		gum format <<<"$description"
+		echo
+		prompt="$(gum input --placeholder='suggest refinements, empty input to accept')"
+		(($? == 130)) && exit 130
+		[[ -z "$prompt" ]] && break
+		description="$(chat 'updating description' $role "$prompt")"
+	done
 
-  jj desc --ignore-working-copy --quiet --stdin <<< "$description"
+	jj desc --ignore-working-copy --quiet --stdin <<<"$description"
 
-  # This might be useful in some circumstances, but so far it hasn't been very
-  # useful. Disabling to simplify the workflow.
-  # if confirm 'edit description?' --default=No; then
-  #   jj desc
-  #   echo
-  # fi
+	# This might be useful in some circumstances, but so far it hasn't been very
+	# useful. Disabling to simplify the workflow.
+	# if confirm 'edit description?' --default=No; then
+	#   jj desc
+	#   echo
+	# fi
 
-  if [[ -n "${argc_pull_request:-}" ]]; then
-    create_or_update_pull_request "${argc_ticket:-}"
-  fi
+	if [[ -n "${argc_pull_request:-}" ]]; then
+		create_or_update_pull_request "${argc_ticket:-}"
+	fi
 
-  if [[ -n "${argc_commit:-}" ]]; then
-    [[ -n "${argc_pull_request:-}" ]] || (argc_hook='pre_commit'; run-hook)
-    jj new --ignore-working-copy --quiet
-  fi
+	if [[ -n "${argc_commit:-}" ]]; then
+		[[ -n "${argc_pull_request:-}" ]] || (
+			argc_hook='pre_commit'
+			run-hook
+		)
+		jj new --ignore-working-copy --quiet
+		if should_tug; then
+			jj bookmark move --from 'heads(::@- & bookmarks())' --to '@-'
+		fi
+	fi
 }
 
 # @cmd Split a revision in two and describe the selected changes with AI
@@ -129,26 +135,26 @@ ai-desc() {
 # first part of the split using the same AI-powered workflow as 'ai-desc'.
 #
 ai-split() {
-  [[ -n "${argc_debug:-}" ]] && set -x
+	[[ -n "${argc_debug:-}" ]] && set -x
 
-  assert_jj_repo
-  assert_non_empty_commit
+	assert_jj_repo
+	assert_non_empty_commit
 
-  cd "$(jj root)"
+	cd "$(jj root)"
 
-  gum log -l info 'splitting commit'
-  echo
-  jj split -m 'ai split' --quiet
-  echo
+	gum log -l info 'splitting commit'
+	echo
+	jj split -m 'ai split' --quiet
+	echo
 
-  local split_commit="$(jj op log --no-graph -n 1 | grep 'split commit' | awk '{print $3}')"
-  local change="$(jj log -r @ --no-graph -T change_id)"
-  jj edit --quiet $(jj show -s -r $split_commit | grep 'Change ID' | awk '{print $3}')
-  gum log -l info 'making description'
-  echo
+	local split_commit="$(jj op log --no-graph -n 1 | grep 'split commit' | awk '{print $3}')"
+	local change="$(jj log -r @ --no-graph -T change_id)"
+	jj edit --quiet $(jj show -s -r $split_commit | grep 'Change ID' | awk '{print $3}')
+	gum log -l info 'making description'
+	echo
 
-  ai-desc
-  jj edit -r "$change" --quiet
+	ai-desc
+	jj edit -r "$change" --quiet
 }
 
 # @cmd Create and update GitHub pull requests from Jujutsu commits
@@ -169,23 +175,23 @@ ai-split() {
 # title, and the remaining lines form the PR body.
 #
 pull-request() {
-  [[ -n "${argc_debug:-}" ]] && set -x
+	[[ -n "${argc_debug:-}" ]] && set -x
 
-  assert_jj_repo
-  assert_non_empty_commit
-  assert_gh_is_logged_in
+	assert_jj_repo
+	assert_non_empty_commit
+	assert_gh_is_logged_in
 
-  cd "$(jj root)"
+	cd "$(jj root)"
 
-  echo -e 'commit description:\n'
-  get_description | gum format
-  echo
-  if confirm 'edit description?' --default=No; then
-    jj desc
-    echo
-  fi
+	echo -e 'commit description:\n'
+	get_description | gum format
+	echo
+	if confirm 'edit description?' --default=No; then
+		jj desc
+		echo
+	fi
 
-  create_or_update_pull_request ''
+	create_or_update_pull_request ''
 }
 
 # @cmd Merge pull request associated with the current commit's bookmark
@@ -217,65 +223,68 @@ pull-request() {
 # positions you to continue working without manual cleanup steps.
 #
 merge-pull-request() {
-  [[ -n "${argc_debug:-}" ]] && set -x
-  assert_jj_repo
-  assert_non_empty_commit
-  assert_gh_is_logged_in
+	[[ -n "${argc_debug:-}" ]] && set -x
+	assert_jj_repo
+	assert_non_empty_commit
+	assert_gh_is_logged_in
 
-  cd "$(jj root)"
+	cd "$(jj root)"
 
-  local bookmark="$(jj log --color never --no-graph -T bookmarks -r @)"
-  local forced=0
-  if [[ -z "$bookmark" ]]; then
-    gum log -l error \
-        'commit does not have a bookmark, cannot create pull request'
-    exit 1
-  elif [[ "$bookmark" =~ \*$ ]]; then
-    if [[ -n "${argc_force:-}" ]]; then
-      bookmark="${bookmark%%\*}"
-      forced=1
-    else
-      gum log -l error 'commit has not been pushed to remote'
-      exit 1
-    fi
-  fi
+	local bookmark="$(jj log --color never --no-graph -T bookmarks -r @)"
+	local forced=0
+	if [[ -z "$bookmark" ]]; then
+		gum log -l error \
+			'commit does not have a bookmark, cannot create pull request'
+		exit 1
+	elif [[ "$bookmark" =~ \*$ ]]; then
+		if [[ -n "${argc_force:-}" ]]; then
+			bookmark="${bookmark%%\*}"
+			forced=1
+		else
+			gum log -l error 'commit has not been pushed to remote'
+			exit 1
+		fi
+	fi
 
-  local pr="$(gh pr list -H "$bookmark" --json number | jq -r '.[0].number')"
-  if [[ "$pr" == 'null' ]]; then
-    gum log -l error 'current commit does not have a pull request'
-    exit 1
-  fi
+	local pr="$(gh pr list -H "$bookmark" --json number | jq -r '.[0].number')"
+	if [[ "$pr" == 'null' ]]; then
+		gum log -l error 'current commit does not have a pull request'
+		exit 1
+	fi
 
-  local gh_cmd=(gh pr merge "$pr")
-  [[ -n "${argc_admin:-}" ]] && gh_cmd+=(--admin)
-  ${gh_cmd[@]}
-  local ret=$?
-  (( $ret != 0 )) && exit $ret
+	local gh_cmd=(gh pr merge "$pr")
+	[[ -n "${argc_admin:-}" ]] && gh_cmd+=(--admin)
+	${gh_cmd[@]}
+	local ret=$?
+	(($ret != 0)) && exit $ret
 
-  local rebase_destination="$(fetch_rebase_destination "$PWD")"
-  local next_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @+)"
-  local this_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @)"
-  local prev_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @-)"
-  if (( ! $forced )); then
-    # If merge has been forced (there are local updates that are not in remove),
-    # then moving commit chains around might result in lost context. Rebasing is
-    # only done when merge was unforced.
-    if [[ -n "$next_change" ]]; then
-      # Non-empty next change means we're in a chain of commits. PR for the
-      # current change has just been merged, so now we're rebasing child of the
-      # current change onto the parent of the current change.
-      jj rebase --quiet -s "$next_change" -d "$prev_change"
-      jj edit --quiet -r "$next_change"
-    else
-      # Current change has no children, next change after current one is on trunk.
-      jj new --quiet "$rebase_destination"
-    fi
-    jj abandon --quiet "$this_change" 2>/dev/null || true
-  fi
+	local rebase_destination="$(fetch_rebase_destination "$PWD")"
+	local next_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @+)"
+	local this_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @)"
+	local prev_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @-)"
+	if ((!$forced)); then
+		# If merge has been forced (there are local updates that are not in remove),
+		# then moving commit chains around might result in lost context. Rebasing is
+		# only done when merge was unforced.
+		if [[ -n "$next_change" ]]; then
+			# Non-empty next change means we're in a chain of commits. PR for the
+			# current change has just been merged, so now we're rebasing child of the
+			# current change onto the parent of the current change.
+			jj rebase --quiet -s "$next_change" -d "$prev_change"
+			jj edit --quiet -r "$next_change"
+		else
+			# Current change has no children, next change after current one is on trunk.
+			jj new --quiet "$rebase_destination"
+		fi
+		jj abandon --quiet "$this_change" 2>/dev/null || true
+	fi
 
-  (argc_hook='post_pull_request_merge'; run-hook)
+	(
+		argc_hook='post_pull_request_merge'
+		run-hook
+	)
 
-  fetch
+	fetch
 }
 
 # @cmd Run configured hooks for various lifecycle events
@@ -296,28 +305,28 @@ merge-pull-request() {
 # immediately with an error.
 #
 run-hook() {
-  [[ -n "${argc_debug:-}" ]] && set -x
+	[[ -n "${argc_debug:-}" ]] && set -x
 
-  assert_jj_repo
+	assert_jj_repo
 
-  cd "$(jj root)"
+	cd "$(jj root)"
 
-  local pwd="${PWD/#$HOME/\$HOME}"
-  local commands
-  readarray -t commands < <(
-    jq -r \
-       --arg pwd "$pwd" \
-       --arg hook "${argc_hook}_hook" \
-       '.project_settings[$pwd][$hook] // [] | .[]' \
-       "$(config_path)"
-  )
-  gum log -l info "running $argc_hook hook"
-  for cmd in "${commands[@]}"; do
-    gum log -l info "hook command: $cmd"
-    $cmd > /dev/null
-    local ret=$?
-    (( $ret != 0 )) && exit $ret
-  done
+	local pwd="${PWD/#$HOME/\$HOME}"
+	local commands
+	readarray -t commands < <(
+		jq -r \
+			--arg pwd "$pwd" \
+			--arg hook "${argc_hook}_hook" \
+			'.project_settings[$pwd][$hook] // [] | .[]' \
+			"$(config_path)"
+	)
+	gum log -l info "running $argc_hook hook"
+	for cmd in "${commands[@]}"; do
+		gum log -l info "hook command: $cmd"
+		$cmd >/dev/null
+		local ret=$?
+		(($ret != 0)) && exit $ret
+	done
 }
 
 # @cmd Fetch latest changes from remote and rebase trunk children
@@ -333,34 +342,34 @@ run-hook() {
 # cleanly after upstream updates.
 #
 fetch() {
-  [[ -n "${argc_debug:-}" ]] && set -x
+	[[ -n "${argc_debug:-}" ]] && set -x
 
-  assert_jj_repo
+	assert_jj_repo
 
-  cd "$(jj root)"
+	cd "$(jj root)"
 
-  local rebase_destination="$(fetch_rebase_destination "$PWD")"
-  local current_change="$(jj log --ignore-working-copy --no-graph -T 'change_id.short()' -r @)"
-  local trunk_children=($(jj log --ignore-working-copy --no-graph -T 'change_id.short()++"\n"' -r "children($rebase_destination)"))
-  jj git fetch 
+	local rebase_destination="$(fetch_rebase_destination "$PWD")"
+	local current_change="$(jj log --ignore-working-copy --no-graph -T 'change_id.short()' -r @)"
+	local trunk_children=($(jj log --ignore-working-copy --no-graph -T 'change_id.short()++"\n"' -r "children($rebase_destination)"))
+	jj git fetch
 
-  for c in ${trunk_children[@]}; do
-    # Commit might not exist after fetch, therefore redirect stderr to
-    # /dev/null.  Value of $immutable can be empty string if commit is gone,
-    # 'true' if it's immutable or 'false' if it's mutable and can be rebased.
-    local immutable="$(jj log --ignore-working-copy --no-graph -T 'immutable' -r $c 2>/dev/null)"
-    if [[ "$immutable" == 'false' ]]; then
-      jj rebase --quiet -s "$c" -d "$rebase_destination"
-    fi
-  done
+	for c in ${trunk_children[@]}; do
+		# Commit might not exist after fetch, therefore redirect stderr to
+		# /dev/null.  Value of $immutable can be empty string if commit is gone,
+		# 'true' if it's immutable or 'false' if it's mutable and can be rebased.
+		local immutable="$(jj log --ignore-working-copy --no-graph -T 'immutable' -r $c 2>/dev/null)"
+		if [[ "$immutable" == 'false' ]]; then
+			jj rebase --quiet -s "$c" -d "$rebase_destination"
+		fi
+	done
 
-  # Working commit before the fetch can become immutable after the fetch
-  # (e.g. PR merged in github), in which case JJ will create a new empty commit
-  # and make it current. When this happens rebase the new current (empty) commit
-  # on top of trunk.
-  if [[ "$current_change" != "$(jj log --no-graph -T 'change_id.short()' -r @)" ]]; then
-    jj rebase --quiet -s @ -d "$rebase_destination"
-  fi
+	# Working commit before the fetch can become immutable after the fetch
+	# (e.g. PR merged in github), in which case JJ will create a new empty commit
+	# and make it current. When this happens rebase the new current (empty) commit
+	# on top of trunk.
+	if [[ "$current_change" != "$(jj log --no-graph -T 'change_id.short()' -r @)" ]]; then
+		jj rebase --quiet -s @ -d "$rebase_destination"
+	fi
 }
 
 # @cmd Display or edit the koshi configuration file
@@ -379,226 +388,240 @@ fetch() {
 # Default config location: ~/.config/koshi/config.json (override with --config)
 #
 config() {
-  if [[ -n "${argc_edit:-}" ]]; then
-    "$EDITOR" "$(config_path)"
-    exit $?
-  fi
-  cat "$(config_path)"
+	if [[ -n "${argc_edit:-}" ]]; then
+		"$EDITOR" "$(config_path)"
+		exit $?
+	fi
+	cat "$(config_path)"
 }
 
 # Prompt the user for confirmation using gum.
 # Returns 0 for yes, 1 for no, and exits with 130 on interrupt (Ctrl-C).
 confirm() {
-  gum confirm "$@"
-  case $? in
-    0)
-      return 0
-      ;;
-    1)
-      return 1
-      ;;
-    130)
-      exit 130
-      ;;
-  esac
+	gum confirm "$@"
+	case $? in
+	0)
+		return 0
+		;;
+	1)
+		return 1
+		;;
+	130)
+		exit 130
+		;;
+	esac
 }
 
 # Retrieves the current bookmark for the working commit. If none exists,
 # creates a new bookmark using the template from jj config and returns its name.
 get_bookmark() {
-  local ticket="${1:-}"
-  local bookmark="$(jj log --color never --no-graph -T bookmarks --limit 1 -r '(@::) & bookmarks()' | sed -e 's/\*//')"
-  if [[ -z "$bookmark" ]]; then
-    local template="$(jj config get templates.git_push_bookmark)"
-    if [[ -n "$ticket" ]]; then
-      template="$template ++ \"/$ticket\""
-    fi
-    bookmark="$(jj log --color never --no-graph -T "$template" -r @)"
-    gum log -l info "creating new bookmark $bookmark"
-    jj bookmark create --ignore-working-copy "$bookmark" -r @ --quiet
-  else
-    gum log -l info "using existing bookmark $bookmark"
-  fi
-  echo "$bookmark"
+	local ticket="${1:-}"
+	local bookmark="$(jj log --color never --no-graph -T bookmarks --limit 1 -r '(@::) & bookmarks()' | sed -e 's/\*//')"
+	if [[ -z "$bookmark" ]]; then
+		local template="$(jj config get templates.git_push_bookmark)"
+		if [[ -n "$ticket" ]]; then
+			template="$template ++ \"/$ticket\""
+		fi
+		bookmark="$(jj log --color never --no-graph -T "$template" -r @)"
+		gum log -l info "creating new bookmark $bookmark"
+		jj bookmark create --ignore-working-copy "$bookmark" -r @ --quiet
+	else
+		gum log -l info "using existing bookmark $bookmark"
+	fi
+	echo "$bookmark"
 }
 
 # Returns the name of the most recent ancestor commit with a bookmark.
 # The "green" bookmark represents a clean-buildable state used for development.
 # When found as a parent, "trunk" is returned instead since all code merges to trunk.
 get_parent() {
-  local parent="$(jj log \
-     --ignore-working-copy \
-     --color never \
-     --no-graph \
-     --limit 1 \
-     -T bookmarks \
-     -r 'latest(ancestors(@-) & bookmarks())' | sed -e 's/\*$//')"
-  if [[ "$parent" =~ green ]]; then
-    echo 'main'
-  else
-    echo "$parent"
-  fi
+	local parent="$(jj log \
+		--ignore-working-copy \
+		--color never \
+		--no-graph \
+		--limit 1 \
+		-T bookmarks \
+		-r 'latest(ancestors(@-) & bookmarks())' | sed -e 's/\*$//')"
+	if [[ "$parent" =~ green ]]; then
+		echo 'main'
+	else
+		echo "$parent"
+	fi
 }
 
 # Returns the commit description of the current (working) commit.
 get_description() {
-  jj log --ignore-working-copy --no-graph -T description -r @
+	jj log --ignore-working-copy --no-graph -T description -r @
 }
 
 # Returns the name of the 'trunk' bookmark.
 trunk() {
-  jj log --ignore-working-copy --color never --no-graph -T bookmarks --limit 1 -r 'trunk()' | sed -e 's/\*//'
+	jj log --ignore-working-copy --color never --no-graph -T bookmarks --limit 1 -r 'trunk()' | sed -e 's/\*//'
 }
 
 # Starts an aichat session with the given title and role.
 # All additional arguments are forwarded to aichat.
 chat() {
-  local title="$1"; shift
-  local role="$1"; shift
-  gum spin --title="$title" -- \
-      aichat --session="$role" --save-session --role="$role" "$@"
+	local title="$1"
+	shift
+	local role="$1"
+	shift
+	gum spin --title="$title" -- \
+		aichat --session="$role" --save-session --role="$role" "$@"
 }
 
 # Checks that the current directory is a jj repository; exits with error if not.
 assert_jj_repo() {
-  if ! jj root &> /dev/null; then
-    gum log -l error 'must be used inside jj repo'
-    exit 1
-  fi
+	if ! jj root &>/dev/null; then
+		gum log -l error 'must be used inside jj repo'
+		exit 1
+	fi
 }
 
 # Checks that current commit has changes; exits when commit is empty.
 assert_non_empty_commit() {
-  [[ "$(jj log -r @ --no-graph -T empty)" == 'true' ]] && exit 0
+	[[ "$(jj log -r @ --no-graph -T empty)" == 'true' ]] && exit 0
 }
 
 # Checks that commit description has at least 3 lines; exits with error if not.
 assert_non_empty_description() {
-  if (( $(get_description | wc -l) < 3 )); then
-    gum log -l error 'description must have at lest 3 lines'
-    exit 1
-  fi
+	if (($(get_description | wc -l) < 3)); then
+		gum log -l error 'description must have at lest 3 lines'
+		exit 1
+	fi
 }
 
 # Checks that GitHub CLI is authorized; exits with error if not.
 assert_gh_is_logged_in() {
-  if ! gh auth status &> /dev/null; then
-    gum log -l error 'gh is not authorized, run "gh auth login"'
-    exit 1
-  fi
+	if ! gh auth status &>/dev/null; then
+		gum log -l error 'gh is not authorized, run "gh auth login"'
+		exit 1
+	fi
 }
 
 # Creates a new pull request or updates the existing one for the current
 # bookmark.
 create_or_update_pull_request() {
-  local ticket="$1"
+	local ticket="$1"
 
-  assert_gh_is_logged_in
-  assert_non_empty_description
+	assert_gh_is_logged_in
+	assert_non_empty_description
 
-  (argc_hook='pre_commit'; run-hook)
+	(
+		argc_hook='pre_commit'
+		run-hook
+	)
 
-  # Bookmark is fetched before push so that new/existing bookmark state can be
-  # determined sinse 'jj git push' will create a new bookmark.
-  local bookmark="$(get_bookmark "$ticket")"
+	# Bookmark is fetched before push so that new/existing bookmark state can be
+	# determined sinse 'jj git push' will create a new bookmark.
+	local bookmark="$(get_bookmark "$ticket")"
 
-  # Before pull request can be created a commit must be pushed to github.
-  gum spin --title='pushing bookmark' -- jj git push -c @ --quiet
-  echo
+	# Before pull request can be created a commit must be pushed to github.
+	gum spin --title='pushing bookmark' -- jj git push -c @ --quiet
+	echo
 
-  local parent="$(get_parent)"
-  local pr="$(gh pr list -H "$bookmark" --json number | jq -r '.[0].number')"
-  if [[ "$pr" == 'null' ]]; then
-    local reviewers=()
-    for i in $(select_pull_request_reviewers ''); do
-      reviewers+=('--reviewer' "$i")
-    done
-    if confirm 'create pr?'; then
-      gum log -l info "creating new pull request with parent $parent"
-      echo
-      gh pr create \
-         --base "$parent" \
-         --head "$bookmark" \
-         ${reviewers[@]} \
-         --title "$(get_description | head -n 1)" \
-         --body-file - < <(get_description | tail -n +3) || exit 1
-      echo
-      (argc_hook='post_pull_request_create'; run-hook)
-    fi
-  elif confirm 'update pr?' --default=Yes; then
-    gum log -l info "updating pull request $pr for branch $bookmark"
-    echo
-    gh pr edit "$pr" \
-       --base "$parent" \
-       --title "$(get_description | head -n 1)" \
-       --body-file - < <(get_description | tail -n +3)
-    echo
-    update_pull_request_reviewers "$pr"
-    (argc_hook='post_pull_request_update'; run-hook)
-  fi
+	local parent="$(get_parent)"
+	local pr="$(gh pr list -H "$bookmark" --json number | jq -r '.[0].number')"
+	if [[ "$pr" == 'null' ]]; then
+		local reviewers=()
+		for i in $(select_pull_request_reviewers ''); do
+			reviewers+=('--reviewer' "$i")
+		done
+		if confirm 'create pr?'; then
+			gum log -l info "creating new pull request with parent $parent"
+			echo
+			gh pr create \
+				--base "$parent" \
+				--head "$bookmark" \
+				${reviewers[@]} \
+				--title "$(get_description | head -n 1)" \
+				--body-file - < <(get_description | tail -n +3) || exit 1
+			echo
+			(
+				argc_hook='post_pull_request_create'
+				run-hook
+			)
+		fi
+	elif confirm 'update pr?' --default=Yes; then
+		gum log -l info "updating pull request $pr for branch $bookmark"
+		echo
+		gh pr edit "$pr" \
+			--base "$parent" \
+			--title "$(get_description | head -n 1)" \
+			--body-file - < <(get_description | tail -n +3)
+		echo
+		update_pull_request_reviewers "$pr"
+		(
+			argc_hook='post_pull_request_update'
+			run-hook
+		)
+	fi
 }
 
 # Adds reviewers selected by the user from a list merging config and current PR
 # reviewers.
 set_pull_request_reviewers() {
-  local pr="$1"; shift
-  local add=()
-  for i in $(select_pull_request_reviewers "$pr"); do
-    add+=('--add-reviewer' "$i")
-  done
-  if (( ${#add[*]} > 0 )); then
-    gh pr edit "$pr" ${add[@]} > /dev/null
-  fi
+	local pr="$1"
+	shift
+	local add=()
+	for i in $(select_pull_request_reviewers "$pr"); do
+		add+=('--add-reviewer' "$i")
+	done
+	if ((${#add[*]} > 0)); then
+		gh pr edit "$pr" ${add[@]} >/dev/null
+	fi
 }
 
 # Synchronizes PR reviewers to match user selection from a merged config and
 # current list.
 update_pull_request_reviewers() {
-  local pr="$1"; shift
-  local sel=($(select_pull_request_reviewers "$pr"))
-  local cur=($(gh pr view "$pr" --json reviewRequests --jq '.reviewRequests[].login'))
-  local remove=()
-  for i in $(set_diff "${cur[*]}" "${sel[*]}"); do
-    remove+=('--remove-reviewer' "$i")
-  done
-  if (( ${#remove[*]} > 0 )); then
-    gum spin --title='removing reviewers' -- \
-        gh pr edit "$pr" ${remove[@]} > /dev/null
-  fi
-  local add=()
-  for i in $(set_diff "${sel[*]}" "${cur[*]}"); do
-    add+=('--add-reviewer' "$i")
-  done
-  if (( ${#add[*]} > 0 )); then
-    gum spin --title='adding reviewers' -- \
-        gh pr edit "$pr" ${add[@]} > /dev/null
-  fi
+	local pr="$1"
+	shift
+	local sel=($(select_pull_request_reviewers "$pr"))
+	local cur=($(gh pr view "$pr" --json reviewRequests --jq '.reviewRequests[].login'))
+	local remove=()
+	for i in $(set_diff "${cur[*]}" "${sel[*]}"); do
+		remove+=('--remove-reviewer' "$i")
+	done
+	if ((${#remove[*]} > 0)); then
+		gum spin --title='removing reviewers' -- \
+			gh pr edit "$pr" ${remove[@]} >/dev/null
+	fi
+	local add=()
+	for i in $(set_diff "${sel[*]}" "${cur[*]}"); do
+		add+=('--add-reviewer' "$i")
+	done
+	if ((${#add[*]} > 0)); then
+		gum spin --title='adding reviewers' -- \
+			gh pr edit "$pr" ${add[@]} >/dev/null
+	fi
 }
 
 # Prompts the user to select reviewers from a merged list of config and current
 # PR reviewers.
 select_pull_request_reviewers() {
-  local pr="$1"; shift
-  local all=($(jq -r --arg pwd "${PWD/#$HOME/\$HOME}" '(.project_settings[$pwd].reviewers // [])[]' "$(config_path)"))
+	local pr="$1"
+	shift
+	local all=($(jq -r --arg pwd "${PWD/#$HOME/\$HOME}" '(.project_settings[$pwd].reviewers // [])[]' "$(config_path)"))
 
-  local cur=()
-  if [[ -n "$pr" ]]; then
-    cur=($(gh pr view "$pr" --json reviewRequests --jq '.reviewRequests[].login'))
-    all=($(set_union "${all[*]}" "${cur[*]}"))
-  fi
-  if (( ${#all[*]} == 0 )); then
-    gum log -l warn 'unable to determine pull request reviewers'
-    echo >&2
-    return 0
-  fi
-  gum choose \
-      --header='select reviewers:' \
-      --ordered \
-      --limit=3 \
-      --height=${#all[*]} \
-      --selected="$(echo ${cur[*]} | tr ' ' ,)" ${all[@]}
-  # This is Ctrl-C
-  (( $? == 130 )) && exit 130
+	local cur=()
+	if [[ -n "$pr" ]]; then
+		cur=($(gh pr view "$pr" --json reviewRequests --jq '.reviewRequests[].login'))
+		all=($(set_union "${all[*]}" "${cur[*]}"))
+	fi
+	if ((${#all[*]} == 0)); then
+		gum log -l warn 'unable to determine pull request reviewers'
+		echo >&2
+		return 0
+	fi
+	gum choose \
+		--header='select reviewers:' \
+		--ordered \
+		--limit=3 \
+		--height=${#all[*]} \
+		--selected="$(echo ${cur[*]} | tr ' ' ,)" ${all[@]}
+	# This is Ctrl-C
+	(($? == 130)) && exit 130
 }
 
 # Determines the AI description role for a given directory path.
@@ -607,8 +630,8 @@ select_pull_request_reviewers() {
 # top-level .ai_description_role if not found. Returns 1 if no role is
 # configured.
 ai_description_role() {
-  local pwd="${1/#$HOME/\$HOME}"
-  local role="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
+	local pwd="${1/#$HOME/\$HOME}"
+	local role="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
     # First try to get project-specific role
     if .project_settings[$pwd].ai_description_role then
       .project_settings[$pwd].ai_description_role
@@ -618,11 +641,11 @@ ai_description_role() {
     else
       null
     end')"
-  if [[ -z "$role" ]]; then
-    echo "Cannot determine AI description role for '$pwd'" >&2
-    return 1
-  fi
-  echo "$role"
+	if [[ -z "$role" ]]; then
+		echo "Cannot determine AI description role for '$pwd'" >&2
+		return 1
+	fi
+	echo "$role"
 }
 
 # Determines the fetch rebase destination for a given directory path.
@@ -632,8 +655,8 @@ ai_description_role() {
 # top-level .fetch_rebase_destination if not found. Defaults to 'trunk()' if
 # not configured.
 fetch_rebase_destination() {
-  local pwd="${1/#$HOME/\$HOME}"
-  local destination="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
+	local pwd="${1/#$HOME/\$HOME}"
+	local destination="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
     # First try to get project-specific destination
     if .project_settings[$pwd].fetch_rebase_destination then
       .project_settings[$pwd].fetch_rebase_destination
@@ -643,42 +666,56 @@ fetch_rebase_destination() {
     else
       "trunk()"
     end')"
-  echo "$destination"
+	echo "$destination"
+}
+
+# Returns success if tug is enabled for the current directory.
+# Tug moves bookmarks to the child commit after creating a new commit.
+# Only configured per-project in .project_settings[$pwd].tug
+should_tug() {
+	local pwd="${PWD/#$HOME/\$HOME}"
+	local tug="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
+    if .project_settings[$pwd].tug then
+      "true"
+    else
+      ""
+    end')"
+	[[ -n "$tug" ]]
 }
 
 # Returns the expanded config file path from the --config option.
 # Expands $HOME in the path and exits with error if the file doesn't exist.
 config_path() {
-  local p="${argc_config/\$HOME/$HOME}"
-  if [[ ! -f "$p" ]]; then
-    echo "Config file '$p' is not found" >&2
-    exit 1
-  fi
-  echo "$p"
+	local p="${argc_config/\$HOME/$HOME}"
+	if [[ ! -f "$p" ]]; then
+		echo "Config file '$p' is not found" >&2
+		exit 1
+	fi
+	echo "$p"
 }
 
 # Prints the union of two sets; elements cannot contain spaces.
 set_union() {
-  declare -A seen
-  for i in $1 $2; do
-    seen["$i"]=1
-  done
-  local merged=("${!seen[@]}")
-  printf "%s\n" "${merged[@]}"
+	declare -A seen
+	for i in $1 $2; do
+		seen["$i"]=1
+	done
+	local merged=("${!seen[@]}")
+	printf "%s\n" "${merged[@]}"
 }
 
 # Prints elements in the first set that are not in the second; elements cannot
 # contain spaces.
 set_diff() {
-  declare -A in2
-  for i in $2; do
-    in2["$i"]=1
-  done
-  local diff=()
-  for i in $1; do
-    [[ ${in2["$i"]+_} ]] || diff+=("$i")
-  done
-  printf "%s\n" "${diff[@]}"
+	declare -A in2
+	for i in $2; do
+		in2["$i"]=1
+	done
+	local diff=()
+	for i in $1; do
+		[[ ${in2["$i"]+_} ]] || diff+=("$i")
+	done
+	printf "%s\n" "${diff[@]}"
 }
 
 eval "$(argc --argc-eval "$0" "$@")"

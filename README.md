@@ -186,7 +186,8 @@ Koshi uses a single configuration file at `~/.config/koshi/config.json` to manag
       "ai_description_role": "backend-engineer",
       "reviewers": ["alice", "bob"],
       "check_commit_commands": ["cargo check", "cargo test"],
-      "fetch_rebase_destination": "green"
+      "fetch_rebase_destination": "green",
+      "tug": true
     },
     "$HOME/projects/frontend": {
       "ai_description_role": "frontend-developer",
@@ -214,6 +215,7 @@ For each project, you can configure:
 - **`reviewers`**: Array of GitHub usernames to suggest as default reviewers for pull requests
 - **`check_commit_commands`**: Array of shell commands to run for commit validation. Each command is executed in sequence, and if any command fails (returns non-zero exit code), the check-commit process stops immediately with an error.
 - **`fetch_rebase_destination`**: Project-specific rebase destination that overrides the global default. This can be any valid Jujutsu revset expression, such as a branch name (e.g., `"green"`, `"main"`) or revset function (e.g., `"trunk()"`, `"latest(main@origin)")`).
+- **`tug`**: When set to `true`, automatically moves any bookmark pointing to the current commit to the newly created child commit after using `--commit`. This keeps bookmarks advancing with your work, equivalent to running `jj bookmark move --from 'heads(::@- & bookmarks())' --to '@-'`.
 
 ### What is an AI Role?
 
