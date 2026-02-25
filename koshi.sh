@@ -168,7 +168,9 @@ ai-split() {
 # This command displays your commit description (with an option to edit it),
 # pushes your commit to GitHub, and then creates a new PR or updates an existing
 # one. When creating or updating a PR, you'll be prompted to select reviewers
-# from your configured list.
+# from a merged set: per-project config reviewers, existing PR reviewers, and
+# any reviewers declared in description metadata lines like
+# "R=[alice],[bob]".
 #
 # The PR base branch is automatically determined by finding the latest ancestor
 # with a bookmark. The first line of the commit description becomes the PR
@@ -252,9 +254,9 @@ merge-pull-request() {
 		exit 1
 	fi
 
-	local gh_cmd=(gh pr merge "$pr")
+	local gh_cmd=(pr merge "$pr")
 	[[ -n "${argc_admin:-}" ]] && gh_cmd+=(--admin)
-	${gh_cmd[@]}
+	gh "${gh_cmd[@]}"
 	local ret=$?
 	(($ret != 0)) && exit $ret
 
@@ -454,6 +456,26 @@ get_description() {
 	jj log --ignore-working-copy --no-graph -T description -r @
 }
 
+# Extracts PR reviewers from commit description metadata lines.
+# Supported format per line: R=[name1],[name2],...
+description_reviewers() {
+	local line
+	local payload
+	local reviewers=()
+	while IFS= read -r line; do
+		[[ "$line" =~ ^[[:space:]]*R= ]] || continue
+		payload="${line#*=}"
+		while [[ "$payload" =~ ^[^[]*\[([^][]+)\](.*)$ ]]; do
+			local reviewer="${BASH_REMATCH[1]}"
+			payload="${BASH_REMATCH[2]}"
+			reviewer="${reviewer#"${reviewer%%[![:space:]]*}"}"
+			reviewer="${reviewer%"${reviewer##*[![:space:]]}"}"
+			[[ -n "$reviewer" ]] && reviewers+=("$reviewer")
+		done
+	done < <(get_description)
+	printf "%s\n" "${reviewers[@]}"
+}
+
 # Returns the name of the 'trunk' bookmark.
 trunk() {
 	jj log --ignore-working-copy --color never --no-graph -T bookmarks --limit 1 -r 'trunk()' | sed -e 's/\*//'
@@ -489,6 +511,34 @@ assert_non_empty_description() {
 		gum log -l error 'description must have at lest 3 lines'
 		exit 1
 	fi
+}
+
+# Returns the directory where GitHub CLI commands should run.
+main_repo_dir() {
+	local repo_dir
+	if repo_dir="$(jj git root 2>/dev/null)"; then
+		echo "$repo_dir"
+		return 0
+	fi
+	if repo_dir="$(jj root 2>/dev/null)"; then
+		echo "$repo_dir"
+		return 0
+	fi
+	gum log -l error 'unable to determine main repository directory'
+	return 1
+}
+
+# Runs GitHub CLI from the main repository directory. This is needed because
+# jj workspaces can have a workspace root that differs from the main git repo
+# root, and gh commands can fail unless executed from the main repo directory.
+gh() {
+	local repo_dir
+	repo_dir="$(main_repo_dir)" || return $?
+	(
+		cd "$repo_dir" || exit 1
+		# Bypass this function and invoke the real gh binary.
+		command gh "$@"
+	)
 }
 
 # Checks that GitHub CLI is authorized; exits with error if not.
@@ -558,8 +608,7 @@ create_or_update_pull_request() {
 	fi
 }
 
-# Adds reviewers selected by the user from a list merging config and current PR
-# reviewers.
+# Adds reviewers selected by the user from a merged suggestion list.
 set_pull_request_reviewers() {
 	local pr="$1"
 	shift
@@ -572,8 +621,8 @@ set_pull_request_reviewers() {
 	fi
 }
 
-# Synchronizes PR reviewers to match user selection from a merged config and
-# current list.
+# Synchronizes PR reviewers to match user selection from the merged suggestion
+# list.
 update_pull_request_reviewers() {
 	local pr="$1"
 	shift
@@ -597,29 +646,34 @@ update_pull_request_reviewers() {
 	fi
 }
 
-# Prompts the user to select reviewers from a merged list of config and current
-# PR reviewers.
+# Prompts the user to select reviewers from a merged list of config reviewers,
+# reviewers extracted from description metadata, and current PR reviewers.
 select_pull_request_reviewers() {
 	local pr="$1"
 	shift
-	local all=($(jq -r --arg pwd "${PWD/#$HOME/\$HOME}" '(.project_settings[$pwd].reviewers // [])[]' "$(config_path)"))
+	local cfg=($(jq -r --arg pwd "${PWD/#$HOME/\$HOME}" '(.project_settings[$pwd].reviewers // [])[]' "$(config_path)"))
+	local desc=($(description_reviewers))
+	local all=($(set_union "${cfg[*]}" "${desc[*]}"))
+	local selected=("${desc[@]}")
 
 	local cur=()
 	if [[ -n "$pr" ]]; then
 		cur=($(gh pr view "$pr" --json reviewRequests --jq '.reviewRequests[].login'))
 		all=($(set_union "${all[*]}" "${cur[*]}"))
+		selected=($(set_union "${selected[*]}" "${cur[*]}"))
 	fi
 	if ((${#all[*]} == 0)); then
 		gum log -l warn 'unable to determine pull request reviewers'
 		echo >&2
 		return 0
 	fi
+	local selected_csv="$(echo ${selected[*]} | tr ' ' ,)"
 	gum choose \
 		--header='select reviewers:' \
 		--ordered \
 		--limit=3 \
 		--height=${#all[*]} \
-		--selected="$(echo ${cur[*]} | tr ' ' ,)" ${all[@]}
+		--selected="$selected_csv" ${all[@]}
 	# This is Ctrl-C
 	(($? == 130)) && exit 130
 }
