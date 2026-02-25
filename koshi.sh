@@ -170,7 +170,7 @@ ai-split() {
 # one. When creating or updating a PR, you'll be prompted to select reviewers
 # from a merged set: per-project config reviewers, existing PR reviewers, and
 # any reviewers declared in description metadata lines like
-# "R=[alice],[bob]".
+# "R=alice,bob".
 #
 # The PR base branch is automatically determined by finding the latest ancestor
 # with a bookmark. The first line of the commit description becomes the PR
@@ -459,20 +459,38 @@ get_description() {
 }
 
 # Extracts PR reviewers from commit description metadata lines.
-# Supported format per line: R=[name1],[name2],...
+# Supported formats per line:
+# - R=name1,name2,...
+# - <!-- [optional text] R=name1,name2,... -->
 description_reviewers() {
 	local line
 	local payload
+	local reviewer
 	local reviewers=()
+	local direct_re='^[[:space:]]*R=(.*)$'
+	local html_comment_re='^[[:space:]]*<!--[[:space:]]*.*R=([^>]*)-->[[:space:]]*$'
+	declare -A seen=()
 	while IFS= read -r line; do
-		[[ "$line" =~ ^[[:space:]]*R= ]] || continue
-		payload="${line#*=}"
-		while [[ "$payload" =~ ^[^[]*\[([^][]+)\](.*)$ ]]; do
-			local reviewer="${BASH_REMATCH[1]}"
-			payload="${BASH_REMATCH[2]}"
+		payload=''
+		if [[ "$line" =~ $direct_re ]]; then
+			payload="${BASH_REMATCH[1]}"
+		elif [[ "$line" =~ $html_comment_re ]]; then
+			payload="${BASH_REMATCH[1]}"
+		else
+			continue
+		fi
+		payload="${payload#"${payload%%[![:space:]]*}"}"
+		payload="${payload%"${payload##*[![:space:]]}"}"
+		[[ -n "$payload" ]] || continue
+		local raw_reviewers=()
+		IFS=',' read -r -a raw_reviewers <<<"$payload"
+		for reviewer in "${raw_reviewers[@]}"; do
 			reviewer="${reviewer#"${reviewer%%[![:space:]]*}"}"
 			reviewer="${reviewer%"${reviewer##*[![:space:]]}"}"
-			[[ -n "$reviewer" ]] && reviewers+=("$reviewer")
+			[[ -n "$reviewer" ]] || continue
+			[[ -n "${seen[$reviewer]+x}" ]] && continue
+			seen[$reviewer]=1
+			reviewers+=("$reviewer")
 		done
 	done < <(get_description)
 	printf "%s\n" "${reviewers[@]}"
@@ -516,14 +534,13 @@ assert_non_empty_description() {
 }
 
 # Returns the directory where GitHub CLI commands should run.
+# `jj git root` returns the Git directory (usually `<repo>/.git`), so we use
+# its parent as the repository root.
 main_repo_dir() {
 	local repo_dir
 	if repo_dir="$(jj git root 2>/dev/null)"; then
-		echo "$repo_dir"
-		return 0
-	fi
-	if repo_dir="$(jj root 2>/dev/null)"; then
-		echo "$repo_dir"
+		repo_dir="${repo_dir%/}"
+		echo "${repo_dir%/*}"
 		return 0
 	fi
 	gum log -l error 'unable to determine main repository directory'
@@ -550,6 +567,19 @@ gh() {
 		# Bypass this function and invoke the real gh binary.
 		command gh "$@"
 	)
+}
+
+# Runs a GitHub CLI command from the main repository directory with a spinner.
+# First argument is the spinner title; remaining arguments are passed to gh.
+gh_with_spinner() {
+	local title="$1"
+	shift
+	local repo_dir
+	repo_dir="$(main_repo_dir)" || return $?
+	# gum spin executes external binaries, not shell functions, so run gh from a
+	# small shell that first switches to the normalized repository root.
+	gum spin --title="$title" -- \
+		bash -c 'cd "$1" || exit 1; shift; command gh "$@"' bash "$repo_dir" "$@"
 }
 
 # Checks that GitHub CLI is authorized; exits with error if not.
@@ -644,16 +674,14 @@ update_pull_request_reviewers() {
 		remove+=('--remove-reviewer' "$i")
 	done
 	if ((${#remove[*]} > 0)); then
-		gum spin --title='removing reviewers' -- \
-			gh pr edit "$pr" ${remove[@]} >/dev/null
+		gh_with_spinner 'removing reviewers' pr edit "$pr" ${remove[@]} >/dev/null
 	fi
 	local add=()
 	for i in $(set_diff "${sel[*]}" "${cur[*]}"); do
 		add+=('--add-reviewer' "$i")
 	done
 	if ((${#add[*]} > 0)); then
-		gum spin --title='adding reviewers' -- \
-			gh pr edit "$pr" ${add[@]} >/dev/null
+		gh_with_spinner 'adding reviewers' pr edit "$pr" ${add[@]} >/dev/null
 	fi
 }
 

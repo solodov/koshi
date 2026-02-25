@@ -15,7 +15,7 @@
 - **Interactive terminal UI**
   Uses [gum](https://github.com/charmbracelet/gum) for beautiful, user-friendly command-line interactions and formatting.
 - **Smart reviewer management**
-  Select reviewers for PRs interactively; merges suggestions from your config and any previous PR reviewers.
+  Select reviewers for PRs interactively; merges suggestions from project config, commit metadata (`R=alice,bob`), and any previous PR reviewers.
 - **Automated commit validation**
   Run project-specific hooks at various lifecycle events (pre-commit, post-PR create/update/merge) to ensure code quality and automate workflows.
 
@@ -62,7 +62,7 @@ This is particularly useful for breaking up large changes into more focused, ato
 koshi pr
 ```
 
-This command lets you review or edit your commit description, pushes your commit to GitHub, and creates or updates a pull request. When opening or updating a PR, Koshi will prompt you to select reviewers interactively based on your configuration.
+This command lets you review or edit your commit description, pushes your commit to GitHub, and creates or updates a pull request. When opening or updating a PR, Koshi will prompt you to select reviewers interactively based on project config, reviewer metadata in the commit description (`R=alice,bob` or `<!-- ... R=alice,bob -->`), and existing PR reviewers.
 
 #### PR Base Branch Selection
 
@@ -251,8 +251,9 @@ The AI role is passed to `aichat` and should match a role you've configured ther
 When creating or updating a pull request, Koshi will:
 
 1. Look for reviewers configured for the current project in `project_settings`
-2. Merge these with any existing reviewers on the pull request
-3. Present the combined set for interactive selection
+2. Parse reviewer metadata lines in the commit description (`R=alice,bob` or `<!-- ... R=alice,bob -->`)
+3. Merge these with any existing reviewers on the pull request
+4. Present the combined set for interactive selection
 
 ### Commit Validation
 
