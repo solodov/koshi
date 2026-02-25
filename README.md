@@ -209,6 +209,8 @@ Koshi uses a single configuration file at `~/.config/koshi/config.json` to manag
 
 The `project_settings` object contains project-specific configurations, keyed by the full filesystem path to your repository (with `$HOME` as a variable).
 
+Koshi resolves this key from the repository's main Git root (`jj git root`, with `jj root` fallback), so all Jujutsu workspaces in the same repository share the same project settings.
+
 For each project, you can configure:
 
 - **`ai_description_role`**: Project-specific AI role that overrides the global default

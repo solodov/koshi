@@ -59,7 +59,7 @@ ai-desc() {
 	if [[ -n "${argc_role:-}" ]]; then
 		role="$argc_role"
 	else
-		role="$(ai_description_role "$PWD")"
+		role="$(ai_description_role)"
 		local ret=$?
 		(($ret != 0)) && exit $ret
 	fi
@@ -260,7 +260,7 @@ merge-pull-request() {
 	local ret=$?
 	(($ret != 0)) && exit $ret
 
-	local rebase_destination="$(fetch_rebase_destination "$PWD")"
+	local rebase_destination="$(fetch_rebase_destination)"
 	local next_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @+)"
 	local this_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @)"
 	local prev_change="$(jj log --no-graph --color=never -T 'change_id.short()' -r @-)"
@@ -298,7 +298,8 @@ merge-pull-request() {
 #
 # Executes hook commands configured for specific lifecycle events in the koshi
 # workflow. Hooks are defined in the config file under project_settings for
-# each project path and can be triggered at different points:
+# each repository's main git root path and can be triggered at different
+# points:
 # - pre_commit: before committing changes
 # - post_pull_request_create/update/merge: after PR operations
 #
@@ -313,13 +314,14 @@ run-hook() {
 
 	cd "$(jj root)"
 
-	local pwd="${PWD/#$HOME/\$HOME}"
+	local project_key
+	project_key="$(project_settings_key)" || exit $?
 	local commands
 	readarray -t commands < <(
 		jq -r \
-			--arg pwd "$pwd" \
+			--arg project_key "$project_key" \
 			--arg hook "${argc_hook}_hook" \
-			'.project_settings[$pwd][$hook] // [] | .[]' \
+			'.project_settings[$project_key][$hook] // [] | .[]' \
 			"$(config_path)"
 	)
 	gum log -l info "running $argc_hook hook"
@@ -350,7 +352,7 @@ fetch() {
 
 	cd "$(jj root)"
 
-	local rebase_destination="$(fetch_rebase_destination "$PWD")"
+	local rebase_destination="$(fetch_rebase_destination)"
 	local current_change="$(jj log --ignore-working-copy --no-graph -T 'change_id.short()' -r @)"
 	local trunk_children=($(jj log --ignore-working-copy --no-graph -T 'change_id.short()++"\n"' -r "children($rebase_destination)"))
 	jj git fetch
@@ -528,6 +530,15 @@ main_repo_dir() {
 	return 1
 }
 
+# Returns the project_settings key for the current repository.
+# This uses the main git repository root so all jj workspaces share one config
+# entry.
+project_settings_key() {
+	local repo_dir
+	repo_dir="$(main_repo_dir)" || return $?
+	echo "${repo_dir/#$HOME/\$HOME}"
+}
+
 # Runs GitHub CLI from the main repository directory. This is needed because
 # jj workspaces can have a workspace root that differs from the main git repo
 # root, and gh commands can fail unless executed from the main repo directory.
@@ -651,7 +662,9 @@ update_pull_request_reviewers() {
 select_pull_request_reviewers() {
 	local pr="$1"
 	shift
-	local cfg=($(jq -r --arg pwd "${PWD/#$HOME/\$HOME}" '(.project_settings[$pwd].reviewers // [])[]' "$(config_path)"))
+	local project_key
+	project_key="$(project_settings_key)" || exit $?
+	local cfg=($(jq -r --arg project_key "$project_key" '(.project_settings[$project_key].reviewers // [])[]' "$(config_path)"))
 	local desc=($(description_reviewers))
 	local all=($(set_union "${cfg[*]}" "${desc[*]}"))
 	local selected=("${desc[@]}")
@@ -678,42 +691,43 @@ select_pull_request_reviewers() {
 	(($? == 130)) && exit 130
 }
 
-# Determines the AI description role for a given directory path.
+# Determines the AI description role for the current repository.
 # Looks up the role in the config file, first checking for a project-specific
-# role at .project_settings[$pwd].ai_description_role, then falling back to the
+# role keyed by the main git repository root path, then falling back to the
 # top-level .ai_description_role if not found. Returns 1 if no role is
 # configured.
 ai_description_role() {
-	local pwd="${1/#$HOME/\$HOME}"
-	local role="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
+	local project_key
+	project_key="$(project_settings_key)" || return $?
+	local role="$(cat "$(config_path)" | jq -r --arg project_key "$project_key" '
     # First try to get project-specific role
-    if .project_settings[$pwd].ai_description_role then
-      .project_settings[$pwd].ai_description_role
+    if .project_settings[$project_key].ai_description_role then
+      .project_settings[$project_key].ai_description_role
     # Fall back to top-level ai_description_role
     elif .ai_description_role then
       .ai_description_role
     else
       null
     end')"
-	if [[ -z "$role" ]]; then
-		echo "Cannot determine AI description role for '$pwd'" >&2
+	if [[ -z "$role" || "$role" == 'null' ]]; then
+		echo "Cannot determine AI description role for '$project_key'" >&2
 		return 1
 	fi
 	echo "$role"
 }
 
-# Determines the fetch rebase destination for a given directory path.
+# Determines the fetch rebase destination for the current repository.
 # Looks up the destination in the config file, first checking for a
-# project-specific destination at
-# .project_settings[$pwd].fetch_rebase_destination, then falling back to the
-# top-level .fetch_rebase_destination if not found. Defaults to 'trunk()' if
-# not configured.
+# project-specific destination keyed by the main git repository root path, then
+# falling back to the top-level .fetch_rebase_destination if not found.
+# Defaults to 'trunk()' if not configured.
 fetch_rebase_destination() {
-	local pwd="${1/#$HOME/\$HOME}"
-	local destination="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
+	local project_key
+	project_key="$(project_settings_key)" || return $?
+	local destination="$(cat "$(config_path)" | jq -r --arg project_key "$project_key" '
     # First try to get project-specific destination
-    if .project_settings[$pwd].fetch_rebase_destination then
-      .project_settings[$pwd].fetch_rebase_destination
+    if .project_settings[$project_key].fetch_rebase_destination then
+      .project_settings[$project_key].fetch_rebase_destination
     # Fall back to top-level fetch_rebase_destination
     elif .fetch_rebase_destination then
       .fetch_rebase_destination
@@ -723,13 +737,14 @@ fetch_rebase_destination() {
 	echo "$destination"
 }
 
-# Returns success if tug is enabled for the current directory.
+# Returns success if tug is enabled for the current repository.
 # Tug moves bookmarks to the child commit after creating a new commit.
-# Only configured per-project in .project_settings[$pwd].tug
+# Only configured per-project in .project_settings[$project_key].tug
 should_tug() {
-	local pwd="${PWD/#$HOME/\$HOME}"
-	local tug="$(cat "$(config_path)" | jq -r --arg pwd "$pwd" '
-    if .project_settings[$pwd].tug then
+	local project_key
+	project_key="$(project_settings_key)" || return $?
+	local tug="$(cat "$(config_path)" | jq -r --arg project_key "$project_key" '
+    if .project_settings[$project_key].tug then
       "true"
     else
       ""
